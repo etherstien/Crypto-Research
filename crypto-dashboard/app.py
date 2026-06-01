@@ -24,33 +24,91 @@ def _safe_float(v, default=0.0):
         return default
 
 
+COIN_MAP = {
+    "BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana",
+    "XRP": "ripple", "ADA": "cardano", "DOGE": "dogecoin",
+    "DOT": "polkadot", "MATIC": "matic-network", "AVAX": "avalanche-2",
+    "LINK": "chainlink", "UNI": "uniswap", "ATOM": "cosmos",
+    "LTC": "litecoin", "BCH": "bitcoin-cash", "ALGO": "algorand",
+    "XLM": "stellar", "VET": "vechain", "NEAR": "near",
+    "FTM": "fantom", "SAND": "the-sandbox", "MANA": "decentraland",
+    "SHIB": "shiba-inu", "TRX": "tron", "ETC": "ethereum-classic",
+    "XMR": "monero", "AAVE": "aave", "MKR": "maker",
+    "COMP": "compound-governance-token", "SUSHI": "sushi",
+    "YFI": "yearn-finance", "SNX": "havven", "CRV": "curve-dao-token",
+    "1INCH": "1inch", "BAL": "balancer", "GRT": "the-graph",
+    "FIL": "filecoin", "CHZ": "chiliz", "ENJ": "enjincoin",
+    "AXS": "axie-infinity", "ICP": "internet-computer",
+    "THETA": "theta-token", "EOS": "eos", "ZEC": "zcash",
+    "DASH": "dash", "BAT": "basic-attention-token",
+    "ZIL": "zilliqa", "QTUM": "qtum", "OMG": "omisego",
+    "IOTA": "iota", "NEO": "neo", "WAVES": "waves",
+    "USDT": "tether", "USDC": "usd-coin", "BUSD": "binance-usd",
+    "DAI": "dai", "TUSD": "true-usd",
+    # Extended
+    "BNB": "binancecoin", "OP": "optimism", "ARB": "arbitrum",
+    "APT": "aptos", "SUI": "sui", "SEI": "sei-network",
+    "INJ": "injective-protocol", "TIA": "celestia", "JUP": "jupiter-exchange-solana",
+    "PYTH": "pyth-network", "WIF": "dogwifcoin", "BONK": "bonk",
+    "PEPE": "pepe", "FLOKI": "floki", "WLD": "worldcoin-wld",
+    "APE": "apecoin", "LDO": "lido-dao", "RUNE": "thorchain",
+    "RENDER": "render-token", "RNDR": "render-token",
+    "ENA": "ethena", "ETHENA": "ethena",
+    "SUI": "sui", "BLUR": "blur", "IMX": "immutable-x",
+    "DYDX": "dydx-chain", "GMX": "gmx", "PENDLE": "pendle",
+    "STRK": "starknet", "MANTA": "manta-network", "ALT": "altlayer",
+    "JTO": "jito-governance-token", "ONDO": "ondo-finance",
+    "W": "wormhole", "BOME": "book-of-meme", "SLERF": "slerf",
+    "MOTHER": "mother-iggy", "MEW": "cat-in-a-dogs-world",
+    "CC": "clash-of-clans-cc",
+}
+
+# Cache for dynamically resolved symbols
+_dyn_symbol_cache: dict[str, str | None] = {}
+
+
+def _resolve_unknown(symbol: str) -> str | None:
+    """Search CoinGecko for a symbol not in the static map."""
+    if symbol in _dyn_symbol_cache:
+        return _dyn_symbol_cache[symbol]
+    try:
+        resp = requests.get(
+            "https://api.coingecko.com/api/v3/search",
+            params={"query": symbol},
+            timeout=5,
+        )
+        coins = resp.json().get("coins", [])
+        exact = [c for c in coins if c.get("symbol", "").upper() == symbol.upper()]
+        if exact:
+            best = min(exact, key=lambda c: c.get("market_cap_rank") or 99999)
+            _dyn_symbol_cache[symbol] = best["id"]
+            return best["id"]
+    except Exception:
+        pass
+    _dyn_symbol_cache[symbol] = None
+    return None
+
+
 def _prices_for(symbols: list[str]) -> dict[str, float]:
-    """Fetch USD prices from CoinGecko (free, no key required)."""
-    COIN_MAP = {
-        "BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana",
-        "XRP": "ripple", "ADA": "cardano", "DOGE": "dogecoin",
-        "DOT": "polkadot", "MATIC": "matic-network", "AVAX": "avalanche-2",
-        "LINK": "chainlink", "UNI": "uniswap", "ATOM": "cosmos",
-        "LTC": "litecoin", "BCH": "bitcoin-cash", "ALGO": "algorand",
-        "XLM": "stellar", "VET": "vechain", "NEAR": "near",
-        "FTM": "fantom", "SAND": "the-sandbox", "MANA": "decentraland",
-        "SHIB": "shiba-inu", "TRX": "tron", "ETC": "ethereum-classic",
-        "XMR": "monero", "AAVE": "aave", "MKR": "maker",
-        "COMP": "compound-governance-token", "SUSHI": "sushi",
-        "YFI": "yearn-finance", "SNX": "havven", "CRV": "curve-dao-token",
-        "1INCH": "1inch", "BAL": "balancer", "GRT": "the-graph",
-        "FIL": "filecoin", "CHZ": "chiliz", "ENJ": "enjincoin",
-        "AXS": "axie-infinity", "ICP": "internet-computer",
-        "THETA": "theta-token", "EOS": "eos", "ZEC": "zcash",
-        "DASH": "dash", "BAT": "basic-attention-token",
-        "ZIL": "zilliqa", "QTUM": "qtum", "OMG": "omisego",
-        "IOTA": "iota", "NEO": "neo", "WAVES": "waves",
-        "USDT": "tether", "USDC": "usd-coin", "BUSD": "binance-usd",
-        "DAI": "dai", "TUSD": "true-usd",
-    }
-    ids = [COIN_MAP[s] for s in symbols if s in COIN_MAP]
-    if not ids:
+    """Fetch USD prices from CoinGecko; resolves unknown symbols dynamically."""
+    known_ids = {}
+    unknown = []
+    for s in symbols:
+        if s in COIN_MAP:
+            known_ids[s] = COIN_MAP[s]
+        elif s not in ("USD", "EUR", "GBP", "JPY", "CAD"):
+            unknown.append(s)
+
+    # Resolve unknown symbols via CoinGecko search
+    for s in unknown:
+        cg_id = _resolve_unknown(s)
+        if cg_id:
+            known_ids[s] = cg_id
+
+    if not known_ids:
         return {}
+
+    ids = list(set(known_ids.values()))
     try:
         resp = requests.get(
             "https://api.coingecko.com/api/v3/simple/price",
@@ -59,9 +117,8 @@ def _prices_for(symbols: list[str]) -> dict[str, float]:
         )
         data = resp.json()
         result = {}
-        for sym in symbols:
-            cg_id = COIN_MAP.get(sym)
-            if cg_id and cg_id in data:
+        for sym, cg_id in known_ids.items():
+            if cg_id in data:
                 result[sym] = data[cg_id]["usd"]
         return result
     except Exception:
