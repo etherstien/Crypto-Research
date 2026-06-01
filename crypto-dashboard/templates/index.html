@@ -132,6 +132,78 @@
       margin-top: .25rem;
     }
 
+    /* ---- Exchange summary row ---- */
+    .exchange-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 900px) {
+      .exchange-summary-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 480px) {
+      .exchange-summary-grid { grid-template-columns: 1fr; }
+    }
+
+    .ex-summary-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .ex-summary-icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .75rem;
+      font-weight: 700;
+      flex-shrink: 0;
+      letter-spacing: -.5px;
+    }
+
+    .ex-summary-info { flex: 1; min-width: 0; }
+
+    .ex-summary-name {
+      font-size: .75rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: .2rem;
+    }
+
+    .ex-summary-value {
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: -.3px;
+    }
+
+    .ex-summary-pct {
+      font-size: .75rem;
+      color: var(--muted);
+      margin-top: .15rem;
+    }
+
+    .ex-summary-bar-wrap {
+      background: var(--surface2);
+      border-radius: 3px;
+      height: 3px;
+      margin-top: .4rem;
+      overflow: hidden;
+    }
+
+    .ex-summary-bar {
+      height: 100%;
+      border-radius: 3px;
+      transition: width .6s ease;
+    }
+
     /* ---- Exchange section ---- */
     .exchanges-grid {
       display: grid;
@@ -392,6 +464,11 @@
     </div>
   </div>
 
+  <!-- Exchange breakdown -->
+  <div class="exchange-summary-grid" id="exchange-summary-grid">
+    <!-- Injected by JS -->
+  </div>
+
   <!-- Exchange cards -->
   <div class="exchanges-grid" id="exchanges-grid">
     <!-- Injected by JS -->
@@ -641,6 +718,7 @@ async function loadExchange(exId) {
     _totals[exId] = total || 0;
     _exchangeData[exId] = data;
     updateSummary(Object.values(_totals), Object.values(_exchangeData));
+    updateExchangeSummaryCards(_totals, _exchangeData);
   } catch(err) {
     console.error(`Failed to fetch ${exId}:`, err);
   }
@@ -676,8 +754,48 @@ async function loadAll() {
   btn.classList.remove("spinning");
 }
 
+function buildExchangeSummaryCards() {
+  const grid = document.getElementById("exchange-summary-grid");
+  EXCHANGES.forEach(ex => {
+    const card = document.createElement("div");
+    card.className = "ex-summary-card";
+    card.id = `ex-sum-${ex.id}`;
+    card.innerHTML = `
+      <div class="ex-summary-icon" id="ex-sum-icon-${ex.id}" style="background:${ex.color}18; color:${ex.color}; border:1px solid ${ex.color}30">
+        ${ex.label.slice(0,3).toUpperCase()}
+      </div>
+      <div class="ex-summary-info">
+        <div class="ex-summary-name">${ex.label}</div>
+        <div class="ex-summary-value" id="ex-sum-val-${ex.id}">—</div>
+        <div class="ex-summary-pct" id="ex-sum-pct-${ex.id}">Loading…</div>
+        <div class="ex-summary-bar-wrap">
+          <div class="ex-summary-bar" id="ex-sum-bar-${ex.id}" style="background:${ex.color}; width:0%"></div>
+        </div>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+function updateExchangeSummaryCards(totals, exchangeData) {
+  const grand = Object.values(totals).reduce((s, t) => s + t, 0);
+  EXCHANGES.forEach(ex => {
+    const total  = totals[ex.id] || 0;
+    const data   = exchangeData[ex.id];
+    const pct    = grand > 0 ? (total / grand * 100) : 0;
+    const valEl  = document.getElementById(`ex-sum-val-${ex.id}`);
+    const pctEl  = document.getElementById(`ex-sum-pct-${ex.id}`);
+    const barEl  = document.getElementById(`ex-sum-bar-${ex.id}`);
+
+    valEl.textContent = total > 0 ? fmt(total) : (data?.error ? "Error" : "—");
+    pctEl.textContent = total > 0 ? `${pct.toFixed(1)}% of portfolio` : (data?.error ? data.error.slice(0,40) : "No positions");
+    pctEl.style.color = data?.error ? "var(--red)" : "";
+    barEl.style.width = pct.toFixed(1) + "%";
+  });
+}
+
 // Build shells immediately so layout is visible before data arrives
 (function init() {
+  buildExchangeSummaryCards();
   const grid = document.getElementById("exchanges-grid");
   EXCHANGES.forEach(ex => grid.appendChild(buildExchangeShell(ex)));
   loadAll();
