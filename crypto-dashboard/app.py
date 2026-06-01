@@ -60,6 +60,7 @@ COIN_MAP = {
     "JTO": "jito-governance-token", "ONDO": "ondo-finance",
     "W": "wormhole", "BOME": "book-of-meme", "SLERF": "slerf",
     "MOTHER": "mother-iggy", "MEW": "cat-in-a-dogs-world",
+    "PUMP": "pump-fun",
     "CC": "clash-of-clans-cc",
 }
 
