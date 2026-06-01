@@ -276,9 +276,20 @@ def index():
 
 @app.route("/api/positions")
 def positions():
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+    fns = [fetch_okx, fetch_binance, fetch_kraken, fetch_robinhood]
+    names = ["OKX", "Binance", "Kraken", "Robinhood"]
     results = []
-    for fetch_fn in [fetch_okx, fetch_binance, fetch_kraken, fetch_robinhood]:
-        results.append(fetch_fn())
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        futures = {ex.submit(fn): name for fn, name in zip(fns, names)}
+        for fut, name in futures.items():
+            try:
+                results.append(fut.result(timeout=20))
+            except FuturesTimeout:
+                results.append({"exchange": name, "error": "Request timed out", "positions": []})
+            except Exception as e:
+                results.append({"exchange": name, "error": str(e), "positions": []})
+    results.sort(key=lambda r: names.index(r["exchange"]))
     return jsonify({"exchanges": results, "fetched_at": datetime.utcnow().isoformat() + "Z"})
 
 
