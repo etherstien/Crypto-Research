@@ -607,28 +607,51 @@ function updateSummary(totals, exchangeData) {
   }
 }
 
+// Per-exchange totals tracked for summary updates
+const _totals = {};
+const _exchangeData = {};
+
+async function loadExchange(exId) {
+  try {
+    const resp = await fetch(`/api/positions/${exId}`);
+    const data = await resp.json();
+    const total = renderExchange(data);
+    _totals[exId] = total || 0;
+    _exchangeData[exId] = data;
+    updateSummary(Object.values(_totals), Object.values(_exchangeData));
+  } catch(err) {
+    console.error(`Failed to fetch ${exId}:`, err);
+  }
+}
+
 async function loadAll() {
   const btn = document.getElementById("refresh-btn");
-  const icon = document.getElementById("refresh-icon");
   btn.disabled = true;
   btn.classList.add("spinning");
 
-  try {
-    const resp = await fetch("/api/positions");
-    const data = await resp.json();
+  // Reset skeletons
+  EXCHANGES.forEach(ex => {
+    const rowsEl = document.getElementById(`rows-${ex.id}`);
+    if (rowsEl) rowsEl.innerHTML = buildSkeletonRows();
+    const statusEl = document.getElementById(`status-${ex.id}`);
+    if (statusEl) { statusEl.textContent = "Loading…"; statusEl.className = "exchange-status status-loading"; }
+    const totalEl = document.getElementById(`total-${ex.id}`);
+    if (totalEl) totalEl.textContent = "—";
+    // Remove manual badge if present
+    const card = document.getElementById(`card-${ex.id}`);
+    card?.querySelectorAll(".manual-badge").forEach(b => b.remove());
+    // Reset PnL header column
+    const th = card?.querySelector("thead tr");
+    if (th && th.children.length > 3) th.removeChild(th.lastElementChild);
+  });
 
-    const totals = data.exchanges.map(ex => renderExchange(ex));
-    updateSummary(totals, data.exchanges);
+  // Fire all fetches concurrently — each card renders as soon as its data arrives
+  await Promise.allSettled(EXCHANGES.map(ex => loadExchange(ex.id)));
 
-    const d = new Date(data.fetched_at);
-    document.getElementById("last-updated").textContent =
-      "Updated " + d.toLocaleTimeString();
-  } catch(err) {
-    console.error("Failed to fetch positions:", err);
-  } finally {
-    btn.disabled = false;
-    btn.classList.remove("spinning");
-  }
+  document.getElementById("last-updated").textContent =
+    "Updated " + new Date().toLocaleTimeString();
+  btn.disabled = false;
+  btn.classList.remove("spinning");
 }
 
 // Build shells immediately so layout is visible before data arrives
