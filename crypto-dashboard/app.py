@@ -341,10 +341,16 @@ def debug_okx():
 
     def mask(s): return s[:4] + "..." + s[-4:] if len(s) > 8 else ("(empty)" if not s else "(too short)")
 
-    ts      = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    path    = "/api/v5/account/balance"
-    msg     = ts + "GET" + path
-    sig     = base64.b64encode(hmac.new(api_secret.encode(), msg.encode(), hashlib.sha256).digest()).decode()
+    # Test 1: public endpoint (no auth) — confirms basic connectivity to OKX
+    try:
+        pub = requests.get("https://www.okx.com/api/v5/public/time", timeout=5).json()
+    except Exception as e:
+        pub = {"exception": str(e)}
+
+    # Test 2: account/balance (requires auth)
+    ts   = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    path = "/api/v5/account/balance"
+    sig  = base64.b64encode(hmac.new(api_secret.encode(), (ts + "GET" + path).encode(), hashlib.sha256).digest()).decode()
     headers = {
         "OK-ACCESS-KEY": api_key,
         "OK-ACCESS-SIGN": sig,
@@ -353,19 +359,32 @@ def debug_okx():
         "Content-Type": "application/json",
     }
     try:
-        resp = requests.get(f"https://www.okx.com{path}", headers=headers, timeout=10)
-        raw  = resp.json()
+        auth = requests.get(f"https://www.okx.com{path}", headers=headers, timeout=10).json()
     except Exception as e:
-        raw = {"exception": str(e)}
+        auth = {"exception": str(e)}
+
+    # Test 3: asset/balances (funding account — different permission scope)
+    ts2  = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    path2 = "/api/v5/asset/balances"
+    sig2  = base64.b64encode(hmac.new(api_secret.encode(), (ts2 + "GET" + path2).encode(), hashlib.sha256).digest()).decode()
+    headers2 = {**headers, "OK-ACCESS-SIGN": sig2, "OK-ACCESS-TIMESTAMP": ts2}
+    try:
+        asset = requests.get(f"https://www.okx.com{path2}", headers=headers2, timeout=10).json()
+    except Exception as e:
+        asset = {"exception": str(e)}
 
     return jsonify({
         "credentials_loaded": {
-            "OKX_API_KEY":    mask(api_key),
-            "OKX_API_SECRET": mask(api_secret),
-            "OKX_PASSPHRASE": mask(passphrase),
+            "OKX_API_KEY":       mask(api_key),
+            "OKX_API_SECRET":    mask(api_secret),
+            "OKX_PASSPHRASE":    mask(passphrase),
+            "key_length":        len(api_key),
+            "secret_length":     len(api_secret),
+            "passphrase_length": len(passphrase),
         },
-        "timestamp_sent": ts,
-        "okx_raw_response": raw,
+        "test_1_public_time":      pub,
+        "test_2_account_balance":  auth,
+        "test_3_asset_balances":   asset,
     })
 
 
