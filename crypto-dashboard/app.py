@@ -61,7 +61,7 @@ COIN_MAP = {
     "W": "wormhole", "BOME": "book-of-meme", "SLERF": "slerf",
     "MOTHER": "mother-iggy", "MEW": "cat-in-a-dogs-world",
     "PUMP": "pump-fun",
-    "CC": "clash-of-clans-cc",
+    "CC": "canton-network",
 }
 
 # Cache for dynamically resolved symbols
