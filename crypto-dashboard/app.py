@@ -234,39 +234,21 @@ def fetch_kraken() -> dict:
 # Robinhood
 # ---------------------------------------------------------------------------
 
-_rh_session_ready = False
-
-def _rh_login() -> bool:
-    """Login once and cache session for the lifetime of the process."""
-    global _rh_session_ready
-    if _rh_session_ready:
-        return True
+def fetch_robinhood() -> dict:
     username = os.getenv("ROBINHOOD_USERNAME", "").strip()
     password = os.getenv("ROBINHOOD_PASSWORD", "").strip()
     totp_key = os.getenv("ROBINHOOD_TOTP_KEY", "").strip()
     if not username or not password:
-        return False
+        return {"exchange": "Robinhood", "error": "Credentials not configured", "positions": []}
     try:
         import robin_stocks.robinhood as rh
         mfa = None
         if totp_key:
             import pyotp
             mfa = pyotp.TOTP(totp_key).now()
-        rh.login(username, password, mfa_code=mfa, store_session=True)
-        _rh_session_ready = True
-        return True
-    except Exception:
-        return False
-
-
-def fetch_robinhood() -> dict:
-    username = os.getenv("ROBINHOOD_USERNAME", "").strip()
-    if not username:
-        return {"exchange": "Robinhood", "error": "Credentials not configured", "positions": []}
-    try:
-        import robin_stocks.robinhood as rh
-        if not _rh_login():
-            return {"exchange": "Robinhood", "error": "Login failed", "positions": []}
+        # store_session=True saves the token to disk; after first device approval
+        # subsequent logins reuse the token automatically with no prompt.
+        rh.login(username, password, mfa_code=mfa, store_session=True, expiresIn=86400)
 
         holdings = rh.get_crypto_positions()
         non_zero = [h for h in holdings if _safe_float(h.get("quantity", 0)) > 0]
@@ -283,8 +265,6 @@ def fetch_robinhood() -> dict:
     except ImportError:
         return {"exchange": "Robinhood", "error": "robin_stocks not installed — run: pip install robin_stocks pyotp", "positions": []}
     except Exception as e:
-        global _rh_session_ready
-        _rh_session_ready = False  # force re-login on next call if session expired
         return {"exchange": "Robinhood", "error": str(e), "positions": []}
 
 
