@@ -385,6 +385,11 @@
       <div class="alloc-bar-wrap"><div class="alloc-bar" id="alloc-bar" style="width:0%"></div></div>
       <div class="sub" id="alloc-sub">largest position</div>
     </div>
+    <div class="summary-card">
+      <div class="label">Total Return</div>
+      <div class="value" id="total-return">—</div>
+      <div class="sub" id="total-return-sub">based on cost basis</div>
+    </div>
   </div>
 
   <!-- Exchange cards -->
@@ -604,6 +609,30 @@ function updateSummary(totals, exchangeData) {
     document.getElementById("top-asset").textContent = top[0];
     document.getElementById("alloc-sub").textContent = `${pct}% of portfolio`;
     document.getElementById("alloc-bar").style.width = pct + "%";
+  }
+
+  // Total return across all positions that have a cost basis
+  const withCost = allPositions.filter(p => p.pnl != null);
+  const totalPnl      = withCost.reduce((s, p) => s + p.pnl, 0);
+  const totalCostBasis = withCost.reduce((s, p) => {
+    const qty   = p.amount || 0;
+    const cost  = p.cost_price || 0;
+    return s + qty * cost;
+  }, 0);
+
+  const retEl    = document.getElementById("total-return");
+  const retSubEl = document.getElementById("total-return-sub");
+
+  if (withCost.length === 0) {
+    retEl.textContent    = "—";
+    retSubEl.textContent = "add cost basis to cost_basis.json";
+    retEl.style.color    = "";
+  } else {
+    const pct  = totalCostBasis > 0 ? (totalPnl / totalCostBasis * 100) : 0;
+    const sign = totalPnl >= 0 ? "+" : "";
+    retEl.textContent    = `${sign}${fmt(totalPnl)} (${sign}${pct.toFixed(2)}%)`;
+    retEl.style.color    = totalPnl >= 0 ? "var(--green)" : "var(--red)";
+    retSubEl.textContent = `across ${withCost.length} tracked position${withCost.length > 1 ? "s" : ""}`;
   }
 }
 
