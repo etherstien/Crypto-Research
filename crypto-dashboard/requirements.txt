@@ -2,4 +2,4 @@ flask==3.0.3
 python-dotenv==1.0.1
 requests==2.32.3
 krakenex==2.1.0
-robin_stocks==3.0.7
+robin_stocks==3.4.0
