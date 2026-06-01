@@ -460,6 +460,7 @@ function buildSkeletonRows(n=3) {
       <td><div class="skeleton" style="width:120px"></div></td>
       <td><div class="skeleton" style="width:80px"></div></td>
       <td><div class="skeleton" style="width:70px;margin-left:auto"></div></td>
+      <td><div class="skeleton" style="width:80px;margin-left:auto"></div></td>
     </tr>`).join("");
 }
 
@@ -479,7 +480,7 @@ function buildExchangeShell(ex) {
     <div class="positions-table-wrap" id="body-${ex.id}">
       <table>
         <thead>
-          <tr><th>Asset</th><th>Amount</th><th>Value (USD)</th></tr>
+          <tr><th>Asset</th><th>Amount</th><th>Value (USD)</th><th style="text-align:right">PnL</th></tr>
         </thead>
         <tbody id="rows-${ex.id}">${buildSkeletonRows()}</tbody>
       </table>
@@ -541,39 +542,31 @@ function renderExchange(data) {
     nameRow.appendChild(badge);
   }
 
-  const hasPnl = positions.some(p => p.pnl !== null && p.pnl !== undefined);
-  if (hasPnl) {
-    const headerRow = rowsEl.closest("table").querySelector("thead tr");
-    if (headerRow.children.length === 3) {
-      const th = document.createElement("th");
-      th.textContent = "PnL";
-      th.style.textAlign = "right";
-      headerRow.appendChild(th);
-    }
-  }
-
   rowsEl.innerHTML = positions.map(p => {
-    const sym = p.symbol;
+    const sym      = p.symbol;
     const isStable = STABLECOINS.has(sym);
-    const name = COIN_NAMES[sym] || "";
-    let pnlCell = "";
-    if (hasPnl) {
-      if (p.pnl !== null && p.pnl !== undefined) {
-        const cls = p.pnl >= 0 ? "pnl-pos" : "pnl-neg";
-        const sign = p.pnl >= 0 ? "+" : "";
-        const pct = p.pnl_pct != null ? ` <span style="font-size:.78rem;opacity:.8">(${sign}${p.pnl_pct.toFixed(2)}%)</span>` : "";
-        pnlCell = `<td class="value-col ${cls}">${sign}${fmt(p.pnl)}${pct}</td>`;
-      } else {
-        pnlCell = `<td class="value-col" style="color:var(--muted)">—</td>`;
-      }
+    const name     = COIN_NAMES[sym] || "";
+    const isEquity = p.asset_type === "equity";
+
+    let pnlCell;
+    if (p.pnl !== null && p.pnl !== undefined) {
+      const cls  = p.pnl >= 0 ? "pnl-pos" : "pnl-neg";
+      const sign = p.pnl >= 0 ? "+" : "";
+      const pct  = p.pnl_pct != null
+        ? ` <span style="font-size:.78rem;opacity:.8">(${sign}${p.pnl_pct.toFixed(2)}%)</span>`
+        : "";
+      pnlCell = `<td class="value-col ${cls}">${sign}${fmt(p.pnl)}${pct}</td>`;
+    } else {
+      pnlCell = `<td class="value-col" style="color:var(--muted)">—</td>`;
     }
+
     return `
       <tr>
         <td>
           <div class="coin-cell">
             <div class="coin-icon" style="${iconStyle(sym)}">${coinInitial(sym)}</div>
             <div>
-              <div class="coin-symbol">${sym}${isStable ? '<span class="stable-badge">stable</span>' : ""}</div>
+              <div class="coin-symbol">${sym}${isStable ? '<span class="stable-badge">stable</span>' : ""}${isEquity ? '<span class="stable-badge" style="background:rgba(59,130,246,.15);color:var(--accent)">stock</span>' : ""}</div>
               ${name ? `<div class="coin-name">${name}</div>` : ""}
             </div>
           </div>

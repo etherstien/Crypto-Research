@@ -302,25 +302,63 @@ def fetch_robinhood() -> dict:
             mfa = pyotp.TOTP(totp_key).now()
         rh.login(username, password, mfa_code=mfa, store_session=True, expiresIn=86400)
 
-        holdings = rh.get_crypto_positions()
-        non_zero = [h for h in holdings if _safe_float(h.get("quantity", 0)) > 0]
-
         positions = []
-        for h in non_zero:
+
+        # --- Equities (stocks/ETFs) via build_holdings() ---
+        # build_holdings returns avg buy price, current price, quantity all in one call
+        try:
+            stock_holdings = rh.build_holdings()
+            for sym, h in stock_holdings.items():
+                qty       = _safe_float(h.get("quantity", 0))
+                price     = _safe_float(h.get("price", 0))
+                avg_cost  = _safe_float(h.get("average_buy_price", 0))
+                usd_val   = round(qty * price, 2) if price else None
+                pos = {"symbol": sym, "amount": qty, "usd_value": usd_val, "asset_type": "equity"}
+                if avg_cost and price:
+                    pos["cost_price"] = avg_cost
+                    pos["pnl"]        = round((price - avg_cost) * qty, 2)
+                    pos["pnl_pct"]    = round((price - avg_cost) / avg_cost * 100, 2)
+                else:
+                    pos["pnl"] = pos["pnl_pct"] = None
+                positions.append(pos)
+        except Exception:
+            pass
+
+        # --- Crypto ---
+        crypto_holdings = rh.get_crypto_positions()
+        for h in crypto_holdings:
             qty = _safe_float(h.get("quantity", 0))
+            if qty <= 0:
+                continue
             sym = h["currency"]["code"]
-            # Fetch current price directly from Robinhood
             try:
                 quote = rh.crypto.get_crypto_quote(sym)
                 price = _safe_float(quote.get("mark_price") or quote.get("bid_price"))
             except Exception:
                 price = 0
-            positions.append({
-                "symbol": sym,
-                "amount": qty,
-                "usd_value": round(qty * price, 4) if price else None,
-            })
-        return {"exchange": "Robinhood", "positions": _attach_returns(positions, "Robinhood")}
+
+            # Robinhood stores total cost_basis per lot; derive average price
+            avg_cost = None
+            try:
+                lots      = h.get("cost_bases", [])
+                total_cost = sum(_safe_float(l.get("direct_cost_basis", 0)) for l in lots)
+                total_qty  = sum(_safe_float(l.get("direct_quantity",   0)) for l in lots)
+                if total_qty > 0:
+                    avg_cost = total_cost / total_qty
+            except Exception:
+                pass
+
+            usd_val = round(qty * price, 4) if price else None
+            pos = {"symbol": sym, "amount": qty, "usd_value": usd_val, "asset_type": "crypto"}
+            if avg_cost and price:
+                pos["cost_price"] = round(avg_cost, 6)
+                pos["pnl"]        = round((price - avg_cost) * qty, 2)
+                pos["pnl_pct"]    = round((price - avg_cost) / avg_cost * 100, 2)
+            else:
+                pos["pnl"] = pos["pnl_pct"] = None
+            positions.append(pos)
+
+        return {"exchange": "Robinhood", "positions": positions}
     except ImportError:
         return {"exchange": "Robinhood", "error": "robin_stocks not installed", "positions": []}
     except Exception as e:
