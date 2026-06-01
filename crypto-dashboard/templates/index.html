@@ -566,7 +566,7 @@ function renderExchange(data) {
           <div class="coin-cell">
             <div class="coin-icon" style="${iconStyle(sym)}">${coinInitial(sym)}</div>
             <div>
-              <div class="coin-symbol">${sym}${isStable ? '<span class="stable-badge">stable</span>' : ""}${isEquity ? '<span class="stable-badge" style="background:rgba(59,130,246,.15);color:var(--accent)">stock</span>' : ""}</div>
+              <div class="coin-symbol">${sym}${isStable ? '<span class="stable-badge">stable</span>' : ""}${isEquity ? '<span class="stable-badge" style="background:rgba(59,130,246,.15);color:var(--accent)">stock</span>' : ""}${p.asset_type==="cash" ? '<span class="stable-badge">cash</span>' : ""}</div>
               ${name ? `<div class="coin-name">${name}</div>` : ""}
             </div>
           </div>

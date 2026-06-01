@@ -358,6 +358,22 @@ def fetch_robinhood() -> dict:
                 pos["pnl"] = pos["pnl_pct"] = None
             positions.append(pos)
 
+        # --- Cash balance ---
+        try:
+            account = rh.load_account_profile()
+            cash = _safe_float(account.get("cash") or account.get("buying_power"))
+            if cash > 0:
+                positions.append({
+                    "symbol":     "USD",
+                    "amount":     cash,
+                    "usd_value":  cash,
+                    "asset_type": "cash",
+                    "pnl":        None,
+                    "pnl_pct":    None,
+                })
+        except Exception:
+            pass
+
         return {"exchange": "Robinhood", "positions": positions}
     except ImportError:
         return {"exchange": "Robinhood", "error": "robin_stocks not installed", "positions": []}
