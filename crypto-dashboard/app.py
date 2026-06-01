@@ -26,6 +26,36 @@ def _safe_float(v, default=0.0):
 STABLECOINS = {"USD", "USDT", "USDC", "BUSD", "DAI", "TUSD", "USDP", "GUSD", "EUR", "GBP", "JPY", "CAD"}
 
 
+def _load_cost_basis() -> dict:
+    path = os.path.join(os.path.dirname(__file__), "cost_basis.json")
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def _attach_returns(positions: list[dict], exchange: str) -> list[dict]:
+    """Merge cost basis into positions and calculate return $ and %."""
+    basis = _load_cost_basis().get(exchange, {})
+    for p in positions:
+        sym        = p["symbol"]
+        cost       = basis.get(sym)
+        usd_val    = p.get("usd_value")
+        qty        = p.get("amount", 0)
+        # Derive current price from usd_value / qty when available
+        cur_price  = (usd_val / qty) if (usd_val and qty) else None
+        if cost and cur_price:
+            p["cost_price"] = cost
+            p["pnl"]        = round((cur_price - cost) * qty, 2)
+            p["pnl_pct"]    = round((cur_price - cost) / cost * 100, 2)
+        else:
+            p.setdefault("cost_price", cost)
+            p.setdefault("pnl",        None)
+            p.setdefault("pnl_pct",    None)
+    return positions
+
+
 # ---------------------------------------------------------------------------
 # OKX
 # ---------------------------------------------------------------------------
@@ -79,7 +109,7 @@ def fetch_okx() -> dict:
                     "amount": qty,
                     "usd_value": _safe_float(d.get("eqUsd")) or None,
                 })
-        return {"exchange": "OKX", "positions": positions}
+        return {"exchange": "OKX", "positions": _attach_returns(positions, "OKX")}
     except Exception as e:
         return {"exchange": "OKX", "error": str(e), "positions": []}
 
@@ -136,7 +166,7 @@ def fetch_binance() -> dict:
             price = binance_price(sym)
             positions.append({"symbol": sym, "amount": qty,
                                "usd_value": round(qty * price, 4) if price else None})
-        return {"exchange": "Binance", "positions": positions}
+        return {"exchange": "Binance", "positions": _attach_returns(positions, "Binance")}
     except Exception as e:
         return {"exchange": "Binance", "error": str(e), "positions": []}
 
@@ -210,7 +240,7 @@ def fetch_kraken() -> dict:
                 p = prices.get(sym)
                 usd_val = round(qty * p, 4) if p else None
             positions.append({"symbol": sym, "amount": qty, "usd_value": usd_val})
-        return {"exchange": "Kraken", "positions": positions}
+        return {"exchange": "Kraken", "positions": _attach_returns(positions, "Kraken")}
     except Exception as e:
         return {"exchange": "Kraken", "error": str(e), "positions": []}
 
@@ -251,7 +281,7 @@ def fetch_robinhood() -> dict:
                 "amount": qty,
                 "usd_value": round(qty * price, 4) if price else None,
             })
-        return {"exchange": "Robinhood", "positions": positions}
+        return {"exchange": "Robinhood", "positions": _attach_returns(positions, "Robinhood")}
     except ImportError:
         return {"exchange": "Robinhood", "error": "robin_stocks not installed", "positions": []}
     except Exception as e:
@@ -300,6 +330,43 @@ def positions_single(exchange: str):
     if not fn:
         return jsonify({"error": "Unknown exchange"}), 404
     return jsonify(fn())
+
+
+@app.route("/api/debug/okx")
+def debug_okx():
+    """Shows masked credentials and raw OKX API response to diagnose auth issues."""
+    api_key    = os.getenv("OKX_API_KEY",    "").strip()
+    api_secret = os.getenv("OKX_API_SECRET", "").strip()
+    passphrase = os.getenv("OKX_PASSPHRASE", "").strip()
+
+    def mask(s): return s[:4] + "..." + s[-4:] if len(s) > 8 else ("(empty)" if not s else "(too short)")
+
+    ts      = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    path    = "/api/v5/account/balance"
+    msg     = ts + "GET" + path
+    sig     = base64.b64encode(hmac.new(api_secret.encode(), msg.encode(), hashlib.sha256).digest()).decode()
+    headers = {
+        "OK-ACCESS-KEY": api_key,
+        "OK-ACCESS-SIGN": sig,
+        "OK-ACCESS-TIMESTAMP": ts,
+        "OK-ACCESS-PASSPHRASE": passphrase,
+        "Content-Type": "application/json",
+    }
+    try:
+        resp = requests.get(f"https://www.okx.com{path}", headers=headers, timeout=10)
+        raw  = resp.json()
+    except Exception as e:
+        raw = {"exception": str(e)}
+
+    return jsonify({
+        "credentials_loaded": {
+            "OKX_API_KEY":    mask(api_key),
+            "OKX_API_SECRET": mask(api_secret),
+            "OKX_PASSPHRASE": mask(passphrase),
+        },
+        "timestamp_sent": ts,
+        "okx_raw_response": raw,
+    })
 
 
 if __name__ == "__main__":
