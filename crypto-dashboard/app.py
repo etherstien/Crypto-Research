@@ -70,48 +70,87 @@ def _load_manual(exchange: str) -> list[dict] | None:
         return None
 
 
+def _okx_live_prices(symbols: list[str]) -> dict[str, float]:
+    """Fetch live prices from OKX public market API — no auth required."""
+    prices = {}
+    for sym in symbols:
+        if sym in STABLECOINS:
+            prices[sym] = 1.0
+            continue
+        try:
+            resp = requests.get(
+                "https://www.okx.com/api/v5/market/ticker",
+                params={"instId": f"{sym}-USDT"},
+                timeout=5,
+            )
+            data = resp.json()
+            if data.get("code") == "0" and data["data"]:
+                prices[sym] = _safe_float(data["data"][0].get("last"))
+        except Exception:
+            pass
+    return prices
+
+
 def fetch_okx() -> dict:
     api_key    = os.getenv("OKX_API_KEY",    "").strip()
     api_secret = os.getenv("OKX_API_SECRET", "").strip()
     passphrase = os.getenv("OKX_PASSPHRASE", "").strip()
-    if not api_key or not api_secret:
-        manual = _load_manual("OKX")
-        if manual:
-            return {"exchange": "OKX", "positions": manual, "source": "manual"}
+
+    # Always try authenticated API first
+    if api_key and api_secret:
+        ts      = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        bal_path = "/api/v5/account/balance"
+        sig     = base64.b64encode(
+            hmac.new(api_secret.encode(), (ts + "GET" + bal_path).encode(), hashlib.sha256).digest()
+        ).decode()
+        headers = {
+            "OK-ACCESS-KEY": api_key,
+            "OK-ACCESS-SIGN": sig,
+            "OK-ACCESS-TIMESTAMP": ts,
+            "OK-ACCESS-PASSPHRASE": passphrase,
+            "Content-Type": "application/json",
+        }
+        try:
+            resp = requests.get(f"https://www.okx.com{bal_path}", headers=headers, timeout=10)
+            data = resp.json()
+            if data.get("code") == "0":
+                positions = []
+                for d in data["data"][0].get("details", []):
+                    qty = _safe_float(d.get("cashBal"))
+                    if qty > 0:
+                        positions.append({
+                            "symbol":    d["ccy"],
+                            "amount":    qty,
+                            "usd_value": _safe_float(d.get("eqUsd")) or None,
+                        })
+                return {"exchange": "OKX", "positions": _attach_returns(positions, "OKX")}
+        except Exception:
+            pass  # fall through to manual mode
+
+    # Fall back to manual balances + live OKX public prices
+    manual = _load_manual("OKX")
+    if not manual:
         return {"exchange": "OKX", "error": "API credentials not configured", "positions": []}
 
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    bal_path = "/api/v5/account/balance"
-    msg = ts + "GET" + bal_path
-    sig = base64.b64encode(
-        hmac.new(api_secret.encode(), msg.encode(), hashlib.sha256).digest()
-    ).decode()
-    headers = {
-        "OK-ACCESS-KEY": api_key,
-        "OK-ACCESS-SIGN": sig,
-        "OK-ACCESS-TIMESTAMP": ts,
-        "OK-ACCESS-PASSPHRASE": passphrase,
-        "Content-Type": "application/json",
-    }
-    try:
-        resp = requests.get(f"https://www.okx.com{bal_path}", headers=headers, timeout=10)
-        data = resp.json()
-        if data.get("code") != "0":
-            return {"exchange": "OKX", "error": f"[{data.get('code')}] {data.get('msg', 'Unknown error')}", "positions": []}
+    symbols  = [p["symbol"] for p in manual]
+    prices   = _okx_live_prices(symbols)
+    basis    = _load_cost_basis().get("OKX", {})
 
-        # eqUsd is provided directly by OKX — no separate price call needed
-        positions = []
-        for d in data["data"][0].get("details", []):
-            qty = _safe_float(d.get("cashBal"))
-            if qty > 0:
-                positions.append({
-                    "symbol": d["ccy"],
-                    "amount": qty,
-                    "usd_value": _safe_float(d.get("eqUsd")) or None,
-                })
-        return {"exchange": "OKX", "positions": _attach_returns(positions, "OKX")}
-    except Exception as e:
-        return {"exchange": "OKX", "error": str(e), "positions": []}
+    positions = []
+    for p in manual:
+        sym   = p["symbol"]
+        qty   = _safe_float(p.get("amount", 0))
+        price = prices.get(sym, 1.0 if sym in STABLECOINS else None)
+        cost  = p.get("cost_price") or basis.get(sym)
+        usd   = round(qty * price, 4) if price else None
+        pos   = {"symbol": sym, "amount": qty, "usd_value": usd}
+        if cost and price:
+            pos["cost_price"] = cost
+            pos["pnl"]        = round((price - cost) * qty, 2)
+            pos["pnl_pct"]    = round((price - cost) / cost * 100, 2)
+        positions.append(pos)
+
+    return {"exchange": "OKX", "positions": positions, "source": "manual"}
 
 
 # ---------------------------------------------------------------------------
