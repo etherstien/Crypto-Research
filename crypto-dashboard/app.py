@@ -139,15 +139,20 @@ def fetch_okx() -> dict:
 def fetch_binance() -> dict:
     api_key    = os.getenv("BINANCE_API_KEY",    "").strip()
     api_secret = os.getenv("BINANCE_API_SECRET", "").strip()
-    # BINANCE_TLD defaults to "com"; set to "us" in .env if you use Binance.US
     tld = os.getenv("BINANCE_TLD", "com").strip()
     if not api_key or not api_secret:
         return {"exchange": "Binance", "error": "API credentials not configured", "positions": []}
 
-    ts = int(time.time() * 1000)
+    base = f"https://api.binance.{tld}"
+    try:
+        # Use Binance server time to avoid clock-skew errors
+        ts = requests.get(f"{base}/api/v3/time", timeout=5).json()["serverTime"]
+    except Exception:
+        ts = int(time.time() * 1000)
+
     query = f"timestamp={ts}"
     sig = hmac.new(api_secret.encode(), query.encode(), hashlib.sha256).hexdigest()
-    url = f"https://api.binance.{tld}/api/v3/account?{query}&signature={sig}"
+    url = f"{base}/api/v3/account?{query}&signature={sig}"
     headers = {"X-MBX-APIKEY": api_key}
 
     try:
@@ -195,8 +200,8 @@ def _kraken_sign(path: str, data: dict, secret: str) -> str:
 
 
 def fetch_kraken() -> dict:
-    api_key = os.getenv("KRAKEN_API_KEY", "")
-    api_secret = os.getenv("KRAKEN_API_SECRET", "")
+    api_key    = os.getenv("KRAKEN_API_KEY",    "").strip()
+    api_secret = os.getenv("KRAKEN_API_SECRET", "").strip()
     if not api_key or not api_secret:
         return {"exchange": "Kraken", "error": "API credentials not configured", "positions": []}
 
