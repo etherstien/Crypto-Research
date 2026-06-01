@@ -7,10 +7,10 @@
     "USD":  1.0
   },
   "Binance": {
-    "ENA":    null,
-    "PUMP":   null,
-    "RENDER": null,
-    "SUI":    null,
+    "ENA":    0.09726,
+    "PUMP":   0.0017574,
+    "RENDER": 1.773,
+    "SUI":    0.9082,
     "USDT":   1.0,
     "USD":    1.0
   },
