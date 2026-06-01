@@ -288,6 +288,22 @@
 
     .skeleton-row td { padding: .75rem 1.5rem; }
 
+    /* ---- Manual badge ---- */
+    .manual-badge {
+      font-size: .65rem;
+      padding: .15rem .5rem;
+      border-radius: 20px;
+      background: rgba(245,158,11,.12);
+      color: var(--gold);
+      border: 1px solid rgba(245,158,11,.25);
+      margin-left: .4rem;
+      vertical-align: middle;
+    }
+
+    /* ---- PnL colors ---- */
+    .pnl-pos { color: var(--green); }
+    .pnl-neg { color: var(--red); }
+
     /* ---- Stablecoin badge ---- */
     .stable-badge {
       font-size: .65rem;
@@ -505,14 +521,47 @@ function renderExchange(data) {
   });
 
   const total = positions.reduce((s, p) => s + (p.usd_value || 0), 0);
+  const isManual = data.source === "manual";
+
   statusEl.textContent = `${positions.length} position${positions.length>1?"s":""}`;
   statusEl.className = "exchange-status status-ok";
   totalEl.textContent = fmt(total);
+
+  if (isManual) {
+    const nameRow = document.getElementById(`card-${data.exchange.toLowerCase()}`).querySelector(".exchange-name-row");
+    const badge = document.createElement("span");
+    badge.className = "manual-badge";
+    badge.title = "Showing manually entered data — add API key for live data";
+    badge.textContent = "manual";
+    nameRow.appendChild(badge);
+  }
+
+  const hasPnl = positions.some(p => p.pnl !== null && p.pnl !== undefined);
+  if (hasPnl) {
+    const headerRow = rowsEl.closest("table").querySelector("thead tr");
+    if (headerRow.children.length === 3) {
+      const th = document.createElement("th");
+      th.textContent = "PnL";
+      th.style.textAlign = "right";
+      headerRow.appendChild(th);
+    }
+  }
 
   rowsEl.innerHTML = positions.map(p => {
     const sym = p.symbol;
     const isStable = STABLECOINS.has(sym);
     const name = COIN_NAMES[sym] || "";
+    let pnlCell = "";
+    if (hasPnl) {
+      if (p.pnl !== null && p.pnl !== undefined) {
+        const cls = p.pnl >= 0 ? "pnl-pos" : "pnl-neg";
+        const sign = p.pnl >= 0 ? "+" : "";
+        const pct = p.pnl_pct != null ? ` <span style="font-size:.78rem;opacity:.8">(${sign}${p.pnl_pct.toFixed(2)}%)</span>` : "";
+        pnlCell = `<td class="value-col ${cls}">${sign}${fmt(p.pnl)}${pct}</td>`;
+      } else {
+        pnlCell = `<td class="value-col" style="color:var(--muted)">—</td>`;
+      }
+    }
     return `
       <tr>
         <td>
@@ -526,6 +575,7 @@ function renderExchange(data) {
         </td>
         <td class="amount-col">${fmtAmt(p.amount)}</td>
         <td class="value-col">${p.usd_value !== null ? fmt(p.usd_value) : "—"}</td>
+        ${pnlCell}
       </tr>`;
   }).join("");
 

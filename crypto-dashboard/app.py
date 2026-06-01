@@ -80,10 +80,23 @@ def _okx_sign(timestamp: str, method: str, path: str, body: str = "") -> str:
     ).decode()
 
 
+def _load_manual(exchange: str) -> list[dict] | None:
+    path = os.path.join(os.path.dirname(__file__), "manual_positions.json")
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        return data.get(exchange)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
 def fetch_okx() -> dict:
     api_key = os.getenv("OKX_API_KEY", "")
     passphrase = os.getenv("OKX_PASSPHRASE", "")
     if not api_key:
+        manual = _load_manual("OKX")
+        if manual:
+            return {"exchange": "OKX", "positions": manual, "source": "manual"}
         return {"exchange": "OKX", "error": "API credentials not configured", "positions": []}
 
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
