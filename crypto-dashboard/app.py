@@ -134,7 +134,7 @@ def fetch_okx() -> dict:
 def fetch_binance() -> dict:
     api_key = os.getenv("BINANCE_API_KEY", "")
     api_secret = os.getenv("BINANCE_API_SECRET", "")
-    if not api_key:
+    if not api_key or not api_secret:
         return {"exchange": "Binance", "error": "API credentials not configured", "positions": []}
 
     ts = int(time.time() * 1000)
@@ -190,7 +190,7 @@ def _kraken_sign(path: str, data: dict, secret: str) -> str:
 def fetch_kraken() -> dict:
     api_key = os.getenv("KRAKEN_API_KEY", "")
     api_secret = os.getenv("KRAKEN_API_SECRET", "")
-    if not api_key:
+    if not api_key or not api_secret:
         return {"exchange": "Kraken", "error": "API credentials not configured", "positions": []}
 
     path = "/0/private/Balance"
