@@ -15,7 +15,7 @@
     "USD":    1.0
   },
   "Kraken": {
-    "PUMP": null
+    "PUMP": 0.00174
   },
   "Robinhood": {
     "ETH": null
