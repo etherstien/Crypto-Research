@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Crypto Portfolio Dashboard</title>
+  <style>
+    /* ---- Reset & base ---- */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0f14;
+      --surface:   #161b26;
+      --surface2:  #1e2535;
+      --border:    #252d3f;
+      --text:      #e2e8f0;
+      --muted:     #7a8aab;
+      --accent:    #3b82f6;
+      --green:     #22c55e;
+      --red:       #ef4444;
+      --gold:      #f59e0b;
+      --okx:       #0ec5ff;
+      --binance:   #f0b90b;
+      --kraken:    #8b5cf6;
+      --robinhood: #00c805;
+    }
+
+    html { font-size: 15px; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    /* ---- Nav ---- */
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 2rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -.3px;
+    }
+
+    .logo-icon {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--accent), #8b5cf6);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem;
+    }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    #last-updated {
+      font-size: .8rem;
+      color: var(--muted);
+    }
+
+    .refresh-btn {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: .45rem 1rem;
+      border-radius: 8px;
+      font-size: .85rem;
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+
+    .refresh-btn:hover { background: var(--border); border-color: var(--accent); }
+    .refresh-btn.spinning svg { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ---- Layout ---- */
+    main { max-width: 1280px; margin: 0 auto; padding: 2rem; }
+
+    /* ---- Summary cards ---- */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .summary-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem 1.5rem;
+    }
+
+    .summary-card .label {
+      font-size: .75rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      margin-bottom: .4rem;
+    }
+
+    .summary-card .value {
+      font-size: 1.7rem;
+      font-weight: 700;
+      letter-spacing: -.5px;
+    }
+
+    .summary-card .sub {
+      font-size: .8rem;
+      color: var(--muted);
+      margin-top: .25rem;
+    }
+
+    /* ---- Exchange section ---- */
+    .exchanges-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(560px, 1fr));
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 640px) {
+      .exchanges-grid { grid-template-columns: 1fr; }
+      main { padding: 1rem; }
+    }
+
+    .exchange-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .exchange-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .exchange-name-row {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+    }
+
+    .exchange-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .exchange-name {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .exchange-status {
+      font-size: .72rem;
+      padding: .2rem .55rem;
+      border-radius: 20px;
+      font-weight: 500;
+    }
+
+    .status-ok      { background: rgba(34,197,94,.15);  color: var(--green); }
+    .status-error   { background: rgba(239,68,68,.12);  color: var(--red); }
+    .status-loading { background: rgba(59,130,246,.12); color: var(--accent); }
+    .status-unconfigured { background: rgba(122,138,171,.12); color: var(--muted); }
+
+    .exchange-total {
+      font-size: 1.05rem;
+      font-weight: 700;
+    }
+
+    /* ---- Positions table ---- */
+    .positions-table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .85rem;
+    }
+
+    thead th {
+      padding: .6rem 1.5rem;
+      text-align: left;
+      color: var(--muted);
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      font-weight: 500;
+      border-bottom: 1px solid var(--border);
+    }
+
+    thead th:last-child { text-align: right; }
+
+    tbody tr { transition: background .1s; }
+    tbody tr:hover { background: var(--surface2); }
+
+    tbody td {
+      padding: .75rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    tbody tr:last-child td { border-bottom: none; }
+
+    .coin-cell {
+      display: flex;
+      align-items: center;
+      gap: .65rem;
+    }
+
+    .coin-icon {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: var(--surface2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .7rem;
+      font-weight: 700;
+      color: var(--text);
+      flex-shrink: 0;
+      border: 1px solid var(--border);
+    }
+
+    .coin-symbol { font-weight: 600; }
+    .coin-name   { font-size: .75rem; color: var(--muted); margin-top: 1px; }
+
+    .amount-col  { color: var(--muted); }
+    .value-col   { text-align: right; font-weight: 600; }
+
+    .no-positions {
+      padding: 2rem 1.5rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: .85rem;
+    }
+
+    .error-msg {
+      padding: 1.2rem 1.5rem;
+      display: flex;
+      align-items: flex-start;
+      gap: .65rem;
+      color: var(--red);
+      font-size: .85rem;
+      background: rgba(239,68,68,.06);
+    }
+
+    .error-msg svg { flex-shrink: 0; margin-top: 1px; }
+
+    /* ---- Skeleton loader ---- */
+    .skeleton {
+      animation: pulse 1.6s ease-in-out infinite;
+      background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+      background-size: 400% 100%;
+      border-radius: 6px;
+      height: 14px;
+    }
+
+    @keyframes pulse {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    .skeleton-row td { padding: .75rem 1.5rem; }
+
+    /* ---- Stablecoin badge ---- */
+    .stable-badge {
+      font-size: .65rem;
+      padding: .1rem .35rem;
+      border-radius: 4px;
+      background: rgba(122,138,171,.15);
+      color: var(--muted);
+      margin-left: .3rem;
+      vertical-align: middle;
+    }
+
+    /* ---- Footer ---- */
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: .75rem;
+      padding: 2.5rem 1rem;
+    }
+
+    footer a { color: var(--accent); text-decoration: none; }
+
+    /* ---- Allocation bar ---- */
+    .alloc-bar-wrap {
+      background: var(--surface2);
+      border-radius: 4px;
+      height: 6px;
+      overflow: hidden;
+      margin-top: .5rem;
+    }
+
+    .alloc-bar {
+      height: 100%;
+      border-radius: 4px;
+      background: linear-gradient(90deg, var(--accent), #8b5cf6);
+      transition: width .6s ease;
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">
+    <div class="logo-icon">₿</div>
+    Crypto Portfolio
+  </div>
+  <div class="nav-right">
+    <span id="last-updated">Never refreshed</span>
+    <button class="refresh-btn" id="refresh-btn" onclick="loadAll()">
+      <svg id="refresh-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+        <path d="M21 3v5h-5"/>
+      </svg>
+      Refresh
+    </button>
+  </div>
+</nav>
+
+<main>
+  <!-- Summary strip -->
+  <div class="summary-grid" id="summary-grid">
+    <div class="summary-card">
+      <div class="label">Total Portfolio</div>
+      <div class="value" id="total-value">—</div>
+      <div class="sub" id="total-sub">Loading…</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Active Exchanges</div>
+      <div class="value" id="active-exchanges">—</div>
+      <div class="sub">of 4 configured</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Total Positions</div>
+      <div class="value" id="total-positions">—</div>
+      <div class="sub">unique assets</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Allocation</div>
+      <div class="value" id="top-asset">—</div>
+      <div class="alloc-bar-wrap"><div class="alloc-bar" id="alloc-bar" style="width:0%"></div></div>
+      <div class="sub" id="alloc-sub">largest position</div>
+    </div>
+  </div>
+
+  <!-- Exchange cards -->
+  <div class="exchanges-grid" id="exchanges-grid">
+    <!-- Injected by JS -->
+  </div>
+</main>
+
+<footer>
+  Prices from <a href="https://coingecko.com" target="_blank">CoinGecko</a> · Data refreshes on demand · Keep API keys in <code>.env</code>
+</footer>
+
+<script>
+const EXCHANGES = [
+  { id: "okx",       label: "OKX",       color: "var(--okx)" },
+  { id: "binance",   label: "Binance",   color: "var(--binance)" },
+  { id: "kraken",    label: "Kraken",    color: "var(--kraken)" },
+  { id: "robinhood", label: "Robinhood", color: "var(--robinhood)" },
+];
+
+const STABLECOINS = new Set(["USDT","USDC","BUSD","DAI","TUSD","USDP","GUSD","USD","EUR","GBP","JPY","CAD"]);
+const COIN_NAMES = {
+  BTC:"Bitcoin", ETH:"Ethereum", SOL:"Solana", XRP:"Ripple", ADA:"Cardano",
+  DOGE:"Dogecoin", DOT:"Polkadot", MATIC:"Polygon", AVAX:"Avalanche",
+  LINK:"Chainlink", UNI:"Uniswap", ATOM:"Cosmos", LTC:"Litecoin",
+  BCH:"Bitcoin Cash", ALGO:"Algorand", XLM:"Stellar", VET:"VeChain",
+  NEAR:"NEAR Protocol", FTM:"Fantom", SHIB:"Shiba Inu", TRX:"TRON",
+  ETC:"Ethereum Classic", XMR:"Monero", AAVE:"Aave", MKR:"Maker",
+  USDT:"Tether", USDC:"USD Coin", BUSD:"Binance USD", DAI:"Dai",
+};
+
+function fmt(n) {
+  if (n === null || n === undefined) return "—";
+  if (n >= 1e9)  return "$" + (n/1e9).toFixed(2)  + "B";
+  if (n >= 1e6)  return "$" + (n/1e6).toFixed(2)  + "M";
+  if (n >= 1e3)  return "$" + (n/1e3).toFixed(2)  + "K";
+  if (n >= 1)    return "$" + n.toFixed(2);
+  return "$" + n.toPrecision(4);
+}
+
+function fmtAmt(n) {
+  if (n >= 1e6)  return (n/1e6).toFixed(2) + "M";
+  if (n >= 1e3)  return (n/1e3).toFixed(2) + "K";
+  if (n >= 1)    return n.toFixed(4);
+  return n.toPrecision(4);
+}
+
+function coinInitial(sym) {
+  return sym.slice(0,3);
+}
+
+// Colour palette for coin icons
+const ICON_COLORS = {
+  BTC:"#f7931a", ETH:"#627eea", SOL:"#9945ff", XRP:"#0085c0",
+  ADA:"#0033ad", DOGE:"#c2a633", DOT:"#e6007a", MATIC:"#8247e5",
+  AVAX:"#e84142", LINK:"#2a5ada", BNB:"#f0b90b", USDT:"#26a17b",
+  USDC:"#2775ca", LTC:"#bfbbbb", SHIB:"#ffa409",
+};
+
+function iconStyle(sym) {
+  const c = ICON_COLORS[sym];
+  return c ? `background:${c}20; color:${c}; border-color:${c}40;` : "";
+}
+
+function buildSkeletonRows(n=3) {
+  return Array.from({length:n}, () => `
+    <tr class="skeleton-row">
+      <td><div class="skeleton" style="width:120px"></div></td>
+      <td><div class="skeleton" style="width:80px"></div></td>
+      <td><div class="skeleton" style="width:70px;margin-left:auto"></div></td>
+    </tr>`).join("");
+}
+
+function buildExchangeShell(ex) {
+  const el = document.createElement("div");
+  el.className = "exchange-card";
+  el.id = `card-${ex.id}`;
+  el.innerHTML = `
+    <div class="exchange-header">
+      <div class="exchange-name-row">
+        <div class="exchange-dot" style="background:${ex.color}"></div>
+        <span class="exchange-name">${ex.label}</span>
+        <span class="exchange-status status-loading" id="status-${ex.id}">Loading…</span>
+      </div>
+      <span class="exchange-total" id="total-${ex.id}">—</span>
+    </div>
+    <div class="positions-table-wrap" id="body-${ex.id}">
+      <table>
+        <thead>
+          <tr><th>Asset</th><th>Amount</th><th>Value (USD)</th></tr>
+        </thead>
+        <tbody id="rows-${ex.id}">${buildSkeletonRows()}</tbody>
+      </table>
+    </div>`;
+  return el;
+}
+
+function renderExchange(data) {
+  const id = data.exchange.toLowerCase();
+  const statusEl = document.getElementById(`status-${id}`);
+  const totalEl  = document.getElementById(`total-${id}`);
+  const rowsEl   = document.getElementById(`rows-${id}`);
+
+  if (data.error) {
+    const isUnconfigured = data.error.toLowerCase().includes("not configured");
+    statusEl.textContent = isUnconfigured ? "Not configured" : "Error";
+    statusEl.className = `exchange-status ${isUnconfigured ? "status-unconfigured" : "status-error"}`;
+    totalEl.textContent = "—";
+    rowsEl.closest(".positions-table-wrap").innerHTML = `
+      <div class="${isUnconfigured ? "no-positions" : "error-msg"}">
+        ${isUnconfigured
+          ? `Add your <strong>${data.exchange}</strong> API keys to <code>.env</code> and restart.`
+          : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+             ${data.error}`}
+      </div>`;
+    return 0;
+  }
+
+  const positions = (data.positions || []).filter(p => p.amount > 0);
+  if (!positions.length) {
+    statusEl.textContent = "No positions";
+    statusEl.className = "exchange-status status-ok";
+    totalEl.textContent = "$0.00";
+    rowsEl.closest(".positions-table-wrap").innerHTML =
+      `<div class="no-positions">No open positions found.</div>`;
+    return 0;
+  }
+
+  // Sort by USD value desc; nulls last
+  positions.sort((a,b) => {
+    if (a.usd_value === null) return 1;
+    if (b.usd_value === null) return -1;
+    return b.usd_value - a.usd_value;
+  });
+
+  const total = positions.reduce((s, p) => s + (p.usd_value || 0), 0);
+  statusEl.textContent = `${positions.length} position${positions.length>1?"s":""}`;
+  statusEl.className = "exchange-status status-ok";
+  totalEl.textContent = fmt(total);
+
+  rowsEl.innerHTML = positions.map(p => {
+    const sym = p.symbol;
+    const isStable = STABLECOINS.has(sym);
+    const name = COIN_NAMES[sym] || "";
+    return `
+      <tr>
+        <td>
+          <div class="coin-cell">
+            <div class="coin-icon" style="${iconStyle(sym)}">${coinInitial(sym)}</div>
+            <div>
+              <div class="coin-symbol">${sym}${isStable ? '<span class="stable-badge">stable</span>' : ""}</div>
+              ${name ? `<div class="coin-name">${name}</div>` : ""}
+            </div>
+          </div>
+        </td>
+        <td class="amount-col">${fmtAmt(p.amount)}</td>
+        <td class="value-col">${p.usd_value !== null ? fmt(p.usd_value) : "—"}</td>
+      </tr>`;
+  }).join("");
+
+  return total;
+}
+
+function updateSummary(totals, exchangeData) {
+  const grand = totals.reduce((s,t) => s+t, 0);
+  const activeCount = exchangeData.filter(d => !d.error).length;
+  const allPositions = exchangeData.flatMap(d => d.positions || []);
+  const uniqueAssets = new Set(allPositions.map(p => p.symbol)).size;
+
+  document.getElementById("total-value").textContent = fmt(grand);
+  document.getElementById("total-sub").textContent = "across all exchanges";
+  document.getElementById("active-exchanges").textContent = activeCount;
+  document.getElementById("total-positions").textContent = uniqueAssets || "—";
+
+  // Top asset across all exchanges
+  const byAsset = {};
+  for (const p of allPositions) {
+    if (p.usd_value) byAsset[p.symbol] = (byAsset[p.symbol] || 0) + p.usd_value;
+  }
+  const top = Object.entries(byAsset).sort((a,b)=>b[1]-a[1])[0];
+  if (top && grand > 0) {
+    const pct = Math.round(top[1]/grand*100);
+    document.getElementById("top-asset").textContent = top[0];
+    document.getElementById("alloc-sub").textContent = `${pct}% of portfolio`;
+    document.getElementById("alloc-bar").style.width = pct + "%";
+  }
+}
+
+async function loadAll() {
+  const btn = document.getElementById("refresh-btn");
+  const icon = document.getElementById("refresh-icon");
+  btn.disabled = true;
+  btn.classList.add("spinning");
+
+  try {
+    const resp = await fetch("/api/positions");
+    const data = await resp.json();
+
+    const totals = data.exchanges.map(ex => renderExchange(ex));
+    updateSummary(totals, data.exchanges);
+
+    const d = new Date(data.fetched_at);
+    document.getElementById("last-updated").textContent =
+      "Updated " + d.toLocaleTimeString();
+  } catch(err) {
+    console.error("Failed to fetch positions:", err);
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove("spinning");
+  }
+}
+
+// Build shells immediately so layout is visible before data arrives
+(function init() {
+  const grid = document.getElementById("exchanges-grid");
+  EXCHANGES.forEach(ex => grid.appendChild(buildExchangeShell(ex)));
+  loadAll();
+})();
+</script>
+</body>
+</html>
