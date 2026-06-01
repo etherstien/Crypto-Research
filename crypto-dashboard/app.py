@@ -91,9 +91,10 @@ def _load_manual(exchange: str) -> list[dict] | None:
 
 
 def fetch_okx() -> dict:
-    api_key = os.getenv("OKX_API_KEY", "")
-    passphrase = os.getenv("OKX_PASSPHRASE", "")
-    if not api_key:
+    api_key   = os.getenv("OKX_API_KEY",    "").strip()
+    api_secret = os.getenv("OKX_API_SECRET", "").strip()
+    passphrase = os.getenv("OKX_PASSPHRASE", "").strip()
+    if not api_key or not api_secret:
         manual = _load_manual("OKX")
         if manual:
             return {"exchange": "OKX", "positions": manual, "source": "manual"}
@@ -101,7 +102,11 @@ def fetch_okx() -> dict:
 
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
     path = "/api/v5/account/balance"
-    sig = _okx_sign(ts, "GET", path)
+
+    msg = ts + "GET" + path
+    sig = base64.b64encode(
+        hmac.new(api_secret.encode(), msg.encode(), hashlib.sha256).digest()
+    ).decode()
 
     headers = {
         "OK-ACCESS-KEY": api_key,
@@ -114,7 +119,7 @@ def fetch_okx() -> dict:
         resp = requests.get(f"https://www.okx.com{path}", headers=headers, timeout=10)
         data = resp.json()
         if data.get("code") != "0":
-            return {"exchange": "OKX", "error": data.get("msg", "Unknown error"), "positions": []}
+            return {"exchange": "OKX", "error": f"[{data.get('code')}] {data.get('msg', 'Unknown error')}", "positions": []}
 
         details = data["data"][0].get("details", [])
         positions = []
@@ -132,15 +137,17 @@ def fetch_okx() -> dict:
 # ---------------------------------------------------------------------------
 
 def fetch_binance() -> dict:
-    api_key = os.getenv("BINANCE_API_KEY", "")
-    api_secret = os.getenv("BINANCE_API_SECRET", "")
+    api_key    = os.getenv("BINANCE_API_KEY",    "").strip()
+    api_secret = os.getenv("BINANCE_API_SECRET", "").strip()
+    # BINANCE_TLD defaults to "com"; set to "us" in .env if you use Binance.US
+    tld = os.getenv("BINANCE_TLD", "com").strip()
     if not api_key or not api_secret:
         return {"exchange": "Binance", "error": "API credentials not configured", "positions": []}
 
     ts = int(time.time() * 1000)
     query = f"timestamp={ts}"
     sig = hmac.new(api_secret.encode(), query.encode(), hashlib.sha256).hexdigest()
-    url = f"https://api.binance.com/api/v3/account?{query}&signature={sig}"
+    url = f"https://api.binance.{tld}/api/v3/account?{query}&signature={sig}"
     headers = {"X-MBX-APIKEY": api_key}
 
     try:
@@ -150,16 +157,16 @@ def fetch_binance() -> dict:
             return {"exchange": "Binance", "error": data.get("msg", "Unknown error"), "positions": []}
 
         balances = data.get("balances", [])
-        symbols = [b["asset"] for b in balances if _safe_float(b.get("free", 0)) + _safe_float(b.get("locked", 0)) > 0]
+        non_zero = [b for b in balances if _safe_float(b.get("free", 0)) + _safe_float(b.get("locked", 0)) > 0]
+        symbols = [b["asset"] for b in non_zero]
         prices = _prices_for(symbols)
 
         positions = []
-        for b in balances:
+        for b in non_zero:
             qty = _safe_float(b.get("free", 0)) + _safe_float(b.get("locked", 0))
-            if qty > 0:
-                sym = b["asset"]
-                price = prices.get(sym, 0)
-                positions.append({"symbol": sym, "amount": qty, "usd_value": qty * price if price else None})
+            sym = b["asset"]
+            price = prices.get(sym, 0)
+            positions.append({"symbol": sym, "amount": qty, "usd_value": qty * price if price else None})
         return {"exchange": "Binance", "positions": positions}
     except Exception as e:
         return {"exchange": "Binance", "error": str(e), "positions": []}
@@ -227,41 +234,57 @@ def fetch_kraken() -> dict:
 # Robinhood
 # ---------------------------------------------------------------------------
 
-def fetch_robinhood() -> dict:
-    username = os.getenv("ROBINHOOD_USERNAME", "")
-    password = os.getenv("ROBINHOOD_PASSWORD", "")
-    totp_key = os.getenv("ROBINHOOD_TOTP_KEY", "")
-    if not username:
-        return {"exchange": "Robinhood", "error": "Credentials not configured", "positions": []}
+_rh_session_ready = False
 
+def _rh_login() -> bool:
+    """Login once and cache session for the lifetime of the process."""
+    global _rh_session_ready
+    if _rh_session_ready:
+        return True
+    username = os.getenv("ROBINHOOD_USERNAME", "").strip()
+    password = os.getenv("ROBINHOOD_PASSWORD", "").strip()
+    totp_key = os.getenv("ROBINHOOD_TOTP_KEY", "").strip()
+    if not username or not password:
+        return False
     try:
         import robin_stocks.robinhood as rh
-        import pyotp
-
         mfa = None
         if totp_key:
-            totp = pyotp.TOTP(totp_key)
-            mfa = totp.now()
+            import pyotp
+            mfa = pyotp.TOTP(totp_key).now()
+        rh.login(username, password, mfa_code=mfa, store_session=True)
+        _rh_session_ready = True
+        return True
+    except Exception:
+        return False
 
-        rh.login(username, password, mfa_code=mfa, store_session=False)
+
+def fetch_robinhood() -> dict:
+    username = os.getenv("ROBINHOOD_USERNAME", "").strip()
+    if not username:
+        return {"exchange": "Robinhood", "error": "Credentials not configured", "positions": []}
+    try:
+        import robin_stocks.robinhood as rh
+        if not _rh_login():
+            return {"exchange": "Robinhood", "error": "Login failed", "positions": []}
+
         holdings = rh.get_crypto_positions()
-
-        symbols = [h["currency"]["code"] for h in holdings if _safe_float(h.get("quantity", 0)) > 0]
+        non_zero = [h for h in holdings if _safe_float(h.get("quantity", 0)) > 0]
+        symbols = [h["currency"]["code"] for h in non_zero]
         prices = _prices_for(symbols)
 
         positions = []
-        for h in holdings:
+        for h in non_zero:
             qty = _safe_float(h.get("quantity", 0))
-            if qty > 0:
-                sym = h["currency"]["code"]
-                price = prices.get(sym, 0)
-                positions.append({"symbol": sym, "amount": qty, "usd_value": qty * price if price else None})
-
-        rh.logout()
+            sym = h["currency"]["code"]
+            price = prices.get(sym, 0)
+            positions.append({"symbol": sym, "amount": qty, "usd_value": qty * price if price else None})
         return {"exchange": "Robinhood", "positions": positions}
     except ImportError:
-        return {"exchange": "Robinhood", "error": "robin_stocks / pyotp not installed", "positions": []}
+        return {"exchange": "Robinhood", "error": "robin_stocks not installed — run: pip install robin_stocks pyotp", "positions": []}
     except Exception as e:
+        global _rh_session_ready
+        _rh_session_ready = False  # force re-login on next call if session expired
         return {"exchange": "Robinhood", "error": str(e), "positions": []}
 
 
