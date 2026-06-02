@@ -15,7 +15,8 @@
     "USD":    1.0
   },
   "Kraken": {
-    "PUMP": 0.00174
+    "PUMP": 0.00174,
+    "PENGU": 0.007503
   },
   "Robinhood": {
     "ETH": 2000.0
