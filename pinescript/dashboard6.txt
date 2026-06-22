@@ -1,0 +1,693 @@
+// ============================================================
+// TRANCHE ENTRY DASHBOARD — CRYPTO ONLY
+// v6.0 — Derived from v5.4.
+//
+// CHANGES FROM v5.4:
+//   • 5 new symbols added: AAVE BNB TIA DRV PENGU  (total: 35 → 40)
+//   • Ticker annotations added to display names:
+//       [P]  = TDR Pro current POSITION
+//       [W]  = TDR Pro WATCHLIST (price-target tracked)
+//       [H]  = You currently HOLD this asset
+//       Combined: [P·H] = TDR holds AND you hold, [W·H] = watchlist + you hold
+//   • Tier B expanded: +BNB [W], +TIA [W]  (11 → 13)
+//   • Tier C expanded: +DRV [P·H], +PENGU [P·H]  (11 → 13)
+//   • Tier A expanded: +AAVE [W]  (9 → 10)
+//   • All 40 symbols = Pine v6 request.security() limit
+//
+// ANNOTATION KEY (visible in ticker name column):
+//   [P]   TDR Pro holds this NOW (current position)
+//   [W]   TDR Pro price-target watchlist
+//   [H]   You own this asset (OKX / Binance / Kraken / Robinhood)
+//   [P·H] Both: TDR holds AND you hold
+//   [W·H] Watchlist AND you hold
+//
+// SORT: within each tier, rows are ordered by a signed T1 metric,
+//       smallest % -> largest %:
+//         below T1 zone  -> negative % (deepest discount, sorts first)
+//         IN T1 zone     -> 0%
+//         above T1 zone  -> +% still to fall (ascending)
+//       => the name closest to / already through its T1 buy zone
+//          floats to the top of its tier; furthest-above sinks.
+//       Live: re-sorts on the last bar as price moves.
+//       BAD SYMBOL (na price) sorts to the very bottom of its tier.
+//
+// CRYPTO TIER S  (4):  BTC ETH SOL LINK
+// CRYPTO TIER A  (10): XRP NEAR TAO ONDO RENDER MORPHO UNI PENDLE JUP AAVE
+// CRYPTO TIER B  (13): HYPE LIT ENA WLD AERO SUI JTO TON CC AVAX AKT BNB TIA
+// CRYPTO TIER C  (13): SPX6900 PUMP USELESS ORBS ZEC FET KAS ZRO DOGE FLOKI MON DRV PENGU
+//
+// Levels for the 28 original names are unchanged from v5.4.
+// Levels for AKT KAS FET ZRO DOGE FLOKI MON (7 v5.4 adds) unchanged.
+// NEW in v6.0: AAVE BNB TIA DRV PENGU — levels analyst-estimated;
+//   verify against current TDR Pro price-target notes before trading.
+//
+// All tranches: progressive BUY zones (T1 first pullback → T3 capitulation)
+// Posture: DRY POWDER — waiting for macro confirmation
+// ============================================================
+
+//@version=6
+indicator("Tranche Dashboard Crypto v6.0", overlay=true)
+plot(na, title="Compiler anchor", display=display.none)
+
+// ─────────────────────────────────────────────
+// SECTION TOGGLES
+// ─────────────────────────────────────────────
+grp_d = "Section Toggles"
+show_cs  = input.bool(true, "Tier S  (BTC/ETH/SOL/LINK)",                                               group=grp_d)
+show_ca  = input.bool(true, "Tier A  (XRP/NEAR/TAO/ONDO/RENDER/MORPHO/UNI/PENDLE/JUP/AAVE)",            group=grp_d)
+show_cb  = input.bool(true, "Tier B  (HYPE/LIT/ENA/WLD/AERO/SUI/JTO/TON/CC/AVAX/AKT/BNB/TIA)",          group=grp_d)
+show_cc  = input.bool(true, "Tier C  (SPX6900/PUMP/USELESS/ORBS/ZEC/FET/KAS/ZRO/DOGE/FLOKI/MON/DRV/PENGU)", group=grp_d)
+show_res = input.bool(true, "Show Reserve Column",                                                       group=grp_d)
+
+grp_sort = "Sorting"
+sort_on  = input.bool(true, "Sort rows within each tier by T1 status (smallest % → largest %)", group=grp_sort)
+
+grp_flash = "In-Zone Flash"
+flash_on    = input.bool(true, "Flash cells when price is in a zone",
+ tooltip="Tick-driven: pulses on each realtime price update. On quiet symbols or closed markets the pulse slows or freezes between ticks — Pine has no wall-clock animation independent of data.", group=grp_flash)
+flash_ms    = input.int(500, "Flash period (ms)", minval=120, maxval=3000, step=50,
+ tooltip="Half-cycle in milliseconds, driven by wall clock (timenow).", group=grp_flash)
+
+grp_pos = "Table Position"
+crypto_pos_str = input.string("Top Right", "Dashboard",
+ options=["Top Right","Top Left","Bottom Right","Bottom Left","Top Center","Bottom Center","Middle Right","Middle Left"], group=grp_pos)
+
+// ─────────────────────────────────────────────
+// SYMBOL OVERRIDES
+// ─────────────────────────────────────────────
+grp_add = "Symbol Overrides — ADDED NAMES (verify exchange)"
+sym_akt    = input.string("COINBASE:AKTUSD",    "AKT",    group=grp_add)
+sym_kas    = input.string("KUCOIN:KASUSDT",     "KAS",    group=grp_add)
+sym_fet    = input.string("BINANCE:FETUSDT",    "FET",    group=grp_add)
+sym_zro    = input.string("BINANCE:ZROUSDT",    "ZRO",    group=grp_add)
+sym_doge   = input.string("BINANCE:DOGEUSDT",   "DOGE",   group=grp_add)
+sym_floki  = input.string("BINANCE:FLOKIUSDT",  "FLOKI",  group=grp_add)
+sym_mon    = input.string("BYBIT:MONUSDT",      "MON",    group=grp_add)
+sym_drv    = input.string("BYBIT:DRVUSDT",      "DRV  ← verify exchange/symbol", group=grp_add)
+sym_pengu  = input.string("BINANCE:PENGUUSDT",  "PENGU",  group=grp_add)
+
+grp_s = "Symbol Overrides — Core"
+sym_btc    = input.string("BINANCE:BTCUSDT",    "BTC",    group=grp_s)
+sym_eth    = input.string("BINANCE:ETHUSDT",    "ETH",    group=grp_s)
+sym_sol    = input.string("BINANCE:SOLUSDT",    "SOL",    group=grp_s)
+sym_link   = input.string("BINANCE:LINKUSDT",   "LINK",   group=grp_s)
+sym_xrp    = input.string("BINANCE:XRPUSDT",    "XRP",    group=grp_s)
+sym_near   = input.string("BINANCE:NEARUSDT",   "NEAR",   group=grp_s)
+sym_tao    = input.string("BINANCE:TAOUSDT",    "TAO",    group=grp_s)
+sym_ondo   = input.string("BINANCE:ONDOUSDT",   "ONDO",   group=grp_s)
+sym_render = input.string("BINANCE:RENDERUSDT", "RENDER", group=grp_s)
+sym_morpho = input.string("BINANCE:MORPHOUSDT", "MORPHO", group=grp_s)
+sym_uni    = input.string("BINANCE:UNIUSDT",    "UNI",    group=grp_s)
+sym_pendle = input.string("BINANCE:PENDLEUSDT", "PENDLE", group=grp_s)
+sym_jup    = input.string("BINANCE:JUPUSDT",    "JUP",    group=grp_s)
+sym_aave   = input.string("BINANCE:AAVEUSDT",   "AAVE",   group=grp_s)
+sym_hype   = input.string("BYBIT:HYPEUSDT",     "HYPE",   group=grp_s)
+sym_lit    = input.string("BINANCE:LITUSDT",    "LIT",    group=grp_s)
+sym_ena    = input.string("BINANCE:ENAUSDT",    "ENA",    group=grp_s)
+sym_wld    = input.string("BINANCE:WLDUSDT",    "WLD",    group=grp_s)
+sym_aero   = input.string("COINBASE:AEROUSD",   "AERO",   group=grp_s)
+sym_sui    = input.string("BINANCE:SUIUSDT",    "SUI",    group=grp_s)
+sym_jto    = input.string("BINANCE:JTOUSDT",    "JTO",    group=grp_s)
+sym_ton    = input.string("BINANCE:TONUSDT",    "TON",    group=grp_s)
+sym_cc     = input.string("BINANCE:CCUSDT",     "CC",     group=grp_s)
+sym_avax   = input.string("BINANCE:AVAXUSDT",   "AVAX",   group=grp_s)
+sym_bnb    = input.string("BINANCE:BNBUSDT",    "BNB",    group=grp_s)
+sym_tia    = input.string("BINANCE:TIAUSDT",    "TIA",    group=grp_s)
+sym_spx    = input.string("BYBIT:SPX6900USDT",  "SPX6900",group=grp_s)
+sym_pump   = input.string("BYBIT:PUMPUSDT",     "PUMP",   group=grp_s)
+sym_usls   = input.string("BYBIT:USELESSUSDT",  "USELESS",group=grp_s)
+sym_orbs   = input.string("BINANCE:ORBSUSDT",   "ORBS",   group=grp_s)
+sym_zec    = input.string("BINANCE:ZECUSDT",    "ZEC",    group=grp_s)
+
+// ─────────────────────────────────────────────
+// LIVE PRICES + HIGHS  (40 tuple requests — at Pine v6 limit)
+// Crypto 52W = 365 daily bars. ATH via ta.max(high).
+// ─────────────────────────────────────────────
+[p_btc,    h52_btc,    ath_btc,    low2y_btc]    = request.security(sym_btc,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_eth,    h52_eth,    ath_eth,    low2y_eth]    = request.security(sym_eth,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_sol,    h52_sol,    ath_sol,    low2y_sol]    = request.security(sym_sol,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_link,   h52_link,   ath_link,   low2y_link]   = request.security(sym_link,   "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_xrp,    h52_xrp,    ath_xrp,    low2y_xrp]    = request.security(sym_xrp,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_near,   h52_near,   ath_near,   low2y_near]   = request.security(sym_near,   "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_tao,    h52_tao,    ath_tao,    low2y_tao]    = request.security(sym_tao,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_ondo,   h52_ondo,   ath_ondo,   low2y_ondo]   = request.security(sym_ondo,   "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_render, h52_render, ath_render, low2y_render] = request.security(sym_render, "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_morpho, h52_morpho, ath_morpho, low2y_morpho] = request.security(sym_morpho, "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_uni,    h52_uni,    ath_uni,    low2y_uni]    = request.security(sym_uni,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_pendle, h52_pendle, ath_pendle, low2y_pendle] = request.security(sym_pendle, "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_jup,    h52_jup,    ath_jup,    low2y_jup]    = request.security(sym_jup,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_aave,   h52_aave,   ath_aave,   low2y_aave]   = request.security(sym_aave,   "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_hype,   h52_hype,   ath_hype,   low2y_hype]   = request.security(sym_hype,   "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_lit,    h52_lit,    ath_lit,    low2y_lit]    = request.security(sym_lit,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_ena,    h52_ena,    ath_ena,    low2y_ena]    = request.security(sym_ena,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_wld,    h52_wld,    ath_wld,    low2y_wld]    = request.security(sym_wld,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_aero,   h52_aero,   ath_aero,   low2y_aero]   = request.security(sym_aero,   "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_sui,    h52_sui,    ath_sui,    low2y_sui]    = request.security(sym_sui,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_jto,    h52_jto,    ath_jto,    low2y_jto]    = request.security(sym_jto,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_ton,    h52_ton,    ath_ton,    low2y_ton]    = request.security(sym_ton,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_cc,     h52_cc,     ath_cc,     low2y_cc]     = request.security(sym_cc,     "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_avax,   h52_avax,   ath_avax,   low2y_avax]   = request.security(sym_avax,   "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_akt,    h52_akt,    ath_akt,    low2y_akt]    = request.security(sym_akt,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_bnb,    h52_bnb,    ath_bnb,    low2y_bnb]    = request.security(sym_bnb,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_tia,    h52_tia,    ath_tia,    low2y_tia]    = request.security(sym_tia,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_spx,    h52_spx,    ath_spx,    low2y_spx]    = request.security(sym_spx,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_pump,   h52_pump,   ath_pump,   low2y_pump]   = request.security(sym_pump,   "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_usls,   h52_usls,   ath_usls,   low2y_usls]   = request.security(sym_usls,   "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_orbs,   h52_orbs,   ath_orbs,   low2y_orbs]   = request.security(sym_orbs,   "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_zec,    h52_zec,    ath_zec,    low2y_zec]    = request.security(sym_zec,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_fet,    h52_fet,    ath_fet,    low2y_fet]    = request.security(sym_fet,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_kas,    h52_kas,    ath_kas,    low2y_kas]    = request.security(sym_kas,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_zro,    h52_zro,    ath_zro,    low2y_zro]    = request.security(sym_zro,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_doge,   h52_doge,   ath_doge,   low2y_doge]   = request.security(sym_doge,   "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_floki,  h52_floki,  ath_floki,  low2y_floki]  = request.security(sym_floki,  "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_mon,    h52_mon,    ath_mon,    low2y_mon]    = request.security(sym_mon,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_drv,    h52_drv,    ath_drv,    low2y_drv]    = request.security(sym_drv,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_pengu,  h52_pengu,  ath_pengu,  low2y_pengu]  = request.security(sym_pengu,  "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+
+// ─────────────────────────────────────────────
+// COLORS
+// ─────────────────────────────────────────────
+C_BG        = color.new(#0d1117, 0)
+C_HDR       = color.new(#0d1117, 0)
+C_TXT       = color.new(#c9d1d9, 0)
+C_TXT_DIM   = color.new(#8b949e, 0)
+C_IN_BG     = color.new(#1a7f37, 75)
+C_IN_TXT    = color.new(#3fb950, 0)
+C_AT_BG     = color.new(#1a7f37, 60)
+C_CLOSE_BG  = color.new(#9e6a03, 75)
+C_CLOSE_TXT = color.new(#d29922, 0)
+C_ABOVE_BG  = color.new(#161b22, 0)
+C_TIER_S    = color.new(#1a3a5c, 0)
+C_TIER_A    = color.new(#1a3a1a, 0)
+C_TIER_B    = color.new(#3a2e00, 0)
+C_TIER_C    = color.new(#3a1515, 0)
+C_S_TXT     = color.new(#64b5f6, 0)
+C_A_TXT     = color.new(#69db7c, 0)
+C_B_TXT     = color.new(#ffd700, 0)
+C_C_TXT     = color.new(#ff9800, 0)
+C_T1        = color.new(#388bfd, 0)
+C_T2        = color.new(#a371f7, 0)
+C_T3        = color.new(#ff7b72, 0)
+C_RES       = color.new(#ff4444, 0)
+C_WATCH_BG  = color.new(#1c2128, 0)
+C_WATCH_TXT = color.new(#6e7681, 0)
+C_BORDER    = color.new(#21262d, 0)
+
+// ─────────────────────────────────────────────
+// HELPER FUNCTIONS
+// ─────────────────────────────────────────────
+f_price(float p) =>
+    na(p) ? "n/a" :
+     p >= 10000 ? "$" + str.tostring(math.round(p, 0)) :
+     p >= 1000  ? "$" + str.tostring(math.round(p, 0)) :
+     p >= 100   ? "$" + str.tostring(math.round(p, 1)) :
+     p >= 10    ? "$" + str.tostring(math.round(p, 2)) :
+     p >= 1     ? "$" + str.tostring(math.round(p, 3)) :
+     p >= 0.01  ? "$" + str.tostring(math.round(p, 4)) :
+     p >= 0.0001? "$" + str.tostring(math.round(p, 6)) :
+                  "$" + str.tostring(math.round(p, 8))
+
+f_status(float price, float lo, float hi) =>
+    string r = ""
+    if na(price)
+        r := "BAD SYMBOL"
+    else if price >= lo and price <= hi
+        float pos = (price - lo) / (hi - lo) * 100
+        r := "IN (" + str.tostring(math.round(pos, 0)) + "%)"
+    else if price > hi
+        float pct = (price - hi) / hi * 100
+        if pct < 2.0
+            r := "AT ZONE (+" + str.tostring(math.round(pct, 1)) + "%)"
+        else
+            r := "+" + str.tostring(math.round(pct, 1)) + "% above"
+    else
+        float pct = (lo - price) / price * 100
+        r := str.tostring(math.round(pct, 1)) + "% to go"
+    r
+
+// ─────────────────────────────────────────────
+// SORT KEY — bucketed T1 ranking, top -> bottom within each tier
+// ─────────────────────────────────────────────
+f_sortkey(float price, float lo, float hi) =>
+    float BELOW_BASE = -1000.0
+    float IN_BASE    = 0.0
+    float AT_BASE    = 1000.0
+    float GO_BASE    = 2000.0
+    float NA_BASE    = 9.0e8
+    float k = NA_BASE
+    if na(price)
+        k := NA_BASE
+    else if price >= lo and price <= hi
+        k := IN_BASE + (price - lo) / (hi - lo)
+    else if price < lo
+        k := BELOW_BASE - ((lo - price) / price * 100)
+    else
+        float pct = (price - hi) / hi * 100
+        if pct < 2.0
+            k := AT_BASE + pct
+        else
+            k := GO_BASE + pct
+    k
+
+f_bg(float price, float lo, float hi) =>
+    color r = C_ABOVE_BG
+    if na(price)
+        r := color.new(#3a1515, 50)
+    else if price >= lo and price <= hi
+        r := C_IN_BG
+    else if price > hi
+        float pct = (price - hi) / hi * 100
+        if pct < 2.0
+            r := C_AT_BG
+        else if pct < 8.0
+            r := C_CLOSE_BG
+        else
+            r := C_ABOVE_BG
+    r
+
+f_tc(float price, float lo, float hi) =>
+    color r = C_TXT_DIM
+    if na(price)
+        r := color.new(#ff4444, 0)
+    else if price >= lo and price <= hi
+        r := C_IN_TXT
+    else if price > hi
+        float pct = (price - hi) / hi * 100
+        if pct < 2.0
+            r := C_IN_TXT
+        else if pct < 8.0
+            r := C_CLOSE_TXT
+        else
+            r := C_TXT_DIM
+    r
+
+f_high_away(float px, float hi) =>
+    na(px) or na(hi) or hi <= 0 ? "n/a" :
+     px >= hi ? "AT HIGH" :
+     str.tostring(math.round((hi - px) / hi * 100, 1)) + "% away"
+
+f_high_tc(float px, float hi) =>
+    na(px) or na(hi) ? C_TXT_DIM :
+     px >= hi ? C_IN_TXT :
+     (hi - px) / hi * 100 <= 5 ? C_CLOSE_TXT : C_TXT_DIM
+
+f_low_away(float px, float lo) =>
+    na(px) or na(lo) or lo <= 0 ? "n/a" :
+     px <= lo ? "AT 2Y LOW" :
+     "+" + str.tostring(math.round((px - lo) / lo * 100, 1)) + "%"
+
+f_low_tc(float px, float lo) =>
+    na(px) or na(lo) ? C_TXT_DIM :
+     px <= lo ? C_IN_TXT :
+     (px - lo) / lo * 100 <= 15 ? C_CLOSE_TXT :
+     C_TXT_DIM
+
+f_res_str(float price, float thresh) =>
+    thresh <= 0 ? "—" :
+     price < thresh ? "★ BELOW" :
+     "+" + str.tostring(math.round((price - thresh) / thresh * 100, 1)) + "%"
+
+f_res_bg(float price, float thresh) =>
+    thresh <= 0 ? C_BG : price < thresh ? C_IN_BG : color.new(#21262d, 0)
+
+f_res_tc(float price, float thresh) =>
+    thresh <= 0 ? C_TXT_DIM : price < thresh ? C_IN_TXT : C_RES
+
+f_action(string nm, float price, float t1l, float t1h, float t2l, float t2h, float t3l, float t3h) =>
+    string r = ""
+    if not na(price)
+        if price >= t1l and price <= t1h
+            r := nm + "(T1) "
+        else if price > t1h and (price - t1h) / t1h * 100 < 2.0
+            r := nm + "(~T1) "
+        else if price >= t2l and price <= t2h
+            r := nm + "(T2) "
+        else if price > t2h and (price - t2h) / t2h * 100 < 2.0
+            r := nm + "(~T2) "
+        else if price >= t3l and price <= t3h
+            r := nm + "(T3) "
+        else if price > t3h and (price - t3h) / t3h * 100 < 2.0
+            r := nm + "(~T3) "
+    r
+
+// ─────────────────────────────────────────────
+// FLASH
+// ─────────────────────────────────────────────
+flashPhase = flash_on and (math.floor(timenow / flash_ms) % 2 == 0)
+
+f_inzone(float price, float lo, float hi) =>
+    not na(price) and price >= lo and price <= hi
+
+f_bg_flash(float price, float lo, float hi) =>
+    color r = f_bg(price, lo, hi)
+    if f_inzone(price, lo, hi)
+        r := flashPhase ? color.new(#1a7f37, 0) : color.new(#1a7f37, 80)
+    r
+
+f_tc_flash(float price, float lo, float hi) =>
+    color r = f_tc(price, lo, hi)
+    if f_inzone(price, lo, hi)
+        r := flashPhase ? color.new(#ffffff, 0) : color.new(#3fb950, 0)
+    r
+
+// ─────────────────────────────────────────────
+// TABLE-WRITING FUNCTIONS
+// ─────────────────────────────────────────────
+f_sect(table t, int r, int cols, string lbl, color sbg, color stc) =>
+    table.cell(t, 0, r, lbl, text_color=stc, bgcolor=sbg, text_size=size.small, text_halign=text.align_left)
+    for c = 1 to cols - 1
+        table.cell(t, c, r, "", text_color=stc, bgcolor=sbg, text_size=size.tiny)
+
+f_row(table t, int r, bool s_res, string nm, float px, float h52, float ath, float low2y, color nmtc,
+      float t1l, float t1h, float t2l, float t2h, float t3l, float t3h, float res) =>
+    table.cell(t, 0, r, nm,          text_color=nmtc,            bgcolor=C_BG, text_size=size.small, text_halign=text.align_left)
+    table.cell(t, 1, r, f_price(px), text_color=C_TXT,           bgcolor=C_BG, text_size=size.small, text_halign=text.align_right)
+    table.cell(t, 2, r, f_price(h52),        text_color=C_A_TXT,           bgcolor=C_BG, text_size=size.small, text_halign=text.align_right)
+    table.cell(t, 3, r, f_high_away(px,h52), text_color=f_high_tc(px,h52), bgcolor=C_BG, text_size=size.small)
+    table.cell(t, 4, r, f_price(ath),        text_color=C_S_TXT,           bgcolor=C_BG, text_size=size.small, text_halign=text.align_right)
+    table.cell(t, 5, r, f_high_away(px,ath), text_color=f_high_tc(px,ath), bgcolor=C_BG, text_size=size.small)
+    table.cell(t, 6, r, f_price(low2y),       text_color=f_low_tc(px,low2y), bgcolor=C_BG, text_size=size.small, text_halign=text.align_right)
+    table.cell(t, 7, r, f_low_away(px,low2y), text_color=f_low_tc(px,low2y), bgcolor=C_BG, text_size=size.small)
+    table.cell(t, 8, r, f_price(t1l) + "–" + f_price(t1h), text_color=C_T1, bgcolor=f_bg_flash(px,t1l,t1h), text_size=size.small)
+    table.cell(t, 9, r, f_status(px,t1l,t1h), text_color=f_tc_flash(px,t1l,t1h), bgcolor=f_bg_flash(px,t1l,t1h), text_size=size.small)
+    table.cell(t,10, r, f_price(t2l) + "–" + f_price(t2h), text_color=C_T2, bgcolor=f_bg_flash(px,t2l,t2h), text_size=size.small)
+    table.cell(t,11, r, f_status(px,t2l,t2h), text_color=f_tc_flash(px,t2l,t2h), bgcolor=f_bg_flash(px,t2l,t2h), text_size=size.small)
+    table.cell(t,12, r, f_price(t3l) + "–" + f_price(t3h), text_color=C_T3, bgcolor=f_bg_flash(px,t3l,t3h), text_size=size.small)
+    table.cell(t,13, r, f_status(px,t3l,t3h), text_color=f_tc_flash(px,t3l,t3h), bgcolor=f_bg_flash(px,t3l,t3h), text_size=size.small)
+    if s_res
+        table.cell(t,14, r, res > 0 ? "< " + f_price(res) : "—", text_color=C_RES,            bgcolor=f_res_bg(px,res), text_size=size.small)
+        table.cell(t,15, r, f_res_str(px,res),                    text_color=f_res_tc(px,res), bgcolor=f_res_bg(px,res), text_size=size.small)
+
+f_summary(table t, int cols, string msg, color bg, color tc) =>
+    table.merge_cells(t, 0, 0, cols - 1, 0)
+    table.cell(t, 0, 0, msg, text_color=tc, bgcolor=bg, text_size=size.small, text_halign=text.align_left)
+
+f_col_hdrs(table t, int row, bool s_res, string label) =>
+    table.cell(t, 0, row, label,       text_color=color.new(#58a6ff,0), bgcolor=C_HDR, text_size=size.small, text_halign=text.align_left)
+    table.cell(t, 1, row, "PRICE",     text_color=color.new(#58a6ff,0), bgcolor=C_HDR, text_size=size.small)
+    table.cell(t, 2, row, "52W HIGH",  text_color=C_A_TXT,              bgcolor=C_HDR, text_size=size.small)
+    table.cell(t, 3, row, "52W AWAY",  text_color=C_A_TXT,              bgcolor=C_HDR, text_size=size.small)
+    table.cell(t, 4, row, "ATH",       text_color=C_S_TXT,              bgcolor=C_HDR, text_size=size.small)
+    table.cell(t, 5, row, "ATH AWAY",  text_color=C_S_TXT,              bgcolor=C_HDR, text_size=size.small)
+    table.cell(t, 6, row, "2Y LOW",    text_color=C_T3,                 bgcolor=C_HDR, text_size=size.small)
+    table.cell(t, 7, row, "ABV 2Y LOW",text_color=C_T3,                 bgcolor=C_HDR, text_size=size.small)
+    table.cell(t, 8, row, "T1 ZONE",   text_color=C_T1,                 bgcolor=C_HDR, text_size=size.small)
+    table.cell(t, 9, row, "T1 STATUS", text_color=C_T1,                 bgcolor=C_HDR, text_size=size.small)
+    table.cell(t,10, row, "T2 ZONE",   text_color=C_T2,                 bgcolor=C_HDR, text_size=size.small)
+    table.cell(t,11, row, "T2 STATUS", text_color=C_T2,                 bgcolor=C_HDR, text_size=size.small)
+    table.cell(t,12, row, "T3 ZONE",   text_color=C_T3,                 bgcolor=C_HDR, text_size=size.small)
+    table.cell(t,13, row, "T3 STATUS", text_color=C_T3,                 bgcolor=C_HDR, text_size=size.small)
+    if s_res
+        table.cell(t,14, row, "RESERVE",    text_color=C_RES, bgcolor=C_HDR, text_size=size.small)
+        table.cell(t,15, row, "RES STATUS", text_color=C_RES, bgcolor=C_HDR, text_size=size.small)
+
+// ─────────────────────────────────────────────
+// TABLE POSITION
+// ─────────────────────────────────────────────
+f_pos(string s) =>
+    var_pos = position.top_right
+    if s == "Top Right"
+        var_pos := position.top_right
+    else if s == "Top Left"
+        var_pos := position.top_left
+    else if s == "Bottom Right"
+        var_pos := position.bottom_right
+    else if s == "Bottom Left"
+        var_pos := position.bottom_left
+    else if s == "Top Center"
+        var_pos := position.top_center
+    else if s == "Bottom Center"
+        var_pos := position.bottom_center
+    else if s == "Middle Right"
+        var_pos := position.middle_right
+    else if s == "Middle Left"
+        var_pos := position.middle_left
+    var_pos
+
+// ─────────────────────────────────────────────
+// ROW COUNTS  (S:4  A:10  B:13  C:13 = 40 total)
+// ─────────────────────────────────────────────
+r_cs = show_cs ? 4  : 0
+r_ca = show_ca ? 10 : 0
+r_cb = show_cb ? 13 : 0
+r_cc = show_cc ? 13 : 0
+
+int CRYPTO_ROWS = 2 + r_cs + (show_cs?1:0) + r_ca + (show_ca?1:0) + r_cb + (show_cb?1:0) + r_cc + (show_cc?1:0)
+int COLS        = show_res ? 16 : 14
+
+crypto_position = f_pos(crypto_pos_str)
+
+// ─────────────────────────────────────────────
+// PER-TIER ROW BUFFERS
+// ─────────────────────────────────────────────
+type RowBuf
+    array<string> nm
+    array<float>  px
+    array<float>  h52
+    array<float>  ath
+    array<float>  low2y
+    array<color>  nmtc
+    array<float>  t1l
+    array<float>  t1h
+    array<float>  t2l
+    array<float>  t2h
+    array<float>  t3l
+    array<float>  t3h
+    array<float>  res
+    array<float>  key
+
+f_newbuf() =>
+    RowBuf.new(array.new<string>(), array.new<float>(), array.new<float>(), array.new<float>(),
+               array.new<float>(),
+               array.new<color>(), array.new<float>(), array.new<float>(), array.new<float>(),
+               array.new<float>(), array.new<float>(), array.new<float>(), array.new<float>(),
+               array.new<float>())
+
+f_push(RowBuf b, string nm, float px, float h52, float ath, float low2y, color nmtc,
+        float t1l, float t1h, float t2l, float t2h, float t3l, float t3h, float res) =>
+    array.push(b.nm,  nm)
+    array.push(b.px,  px)
+    array.push(b.h52, h52)
+    array.push(b.ath, ath)
+    array.push(b.low2y, low2y)
+    array.push(b.nmtc, nmtc)
+    array.push(b.t1l, t1l)
+    array.push(b.t1h, t1h)
+    array.push(b.t2l, t2l)
+    array.push(b.t2h, t2h)
+    array.push(b.t3l, t3l)
+    array.push(b.t3h, t3h)
+    array.push(b.res, res)
+    array.push(b.key, f_sortkey(px, t1l, t1h))
+
+f_emit_tier(table t, RowBuf b, int start_row, bool s_res, bool do_sort) =>
+    int n = array.size(b.nm)
+    var_order = array.new<int>()
+    array.clear(var_order)
+    for i = 0 to n - 1
+        array.push(var_order, i)
+    if do_sort
+        for a = 0 to n - 2
+            int minpos = a
+            for bx = a + 1 to n - 1
+                if array.get(b.key, array.get(var_order, bx)) < array.get(b.key, array.get(var_order, minpos))
+                    minpos := bx
+            if minpos != a
+                int tmp = array.get(var_order, a)
+                array.set(var_order, a, array.get(var_order, minpos))
+                array.set(var_order, minpos, tmp)
+    int rr = start_row
+    for j = 0 to n - 1
+        int idx = array.get(var_order, j)
+        f_row(t, rr, s_res, array.get(b.nm, idx), array.get(b.px, idx), array.get(b.h52, idx),
+              array.get(b.ath, idx), array.get(b.low2y, idx), array.get(b.nmtc, idx),
+              array.get(b.t1l, idx), array.get(b.t1h, idx),
+              array.get(b.t2l, idx), array.get(b.t2h, idx),
+              array.get(b.t3l, idx), array.get(b.t3h, idx),
+              array.get(b.res, idx))
+        rr += 1
+    rr
+
+// ─────────────────────────────────────────────
+// DIAGNOSTIC LABEL
+// ─────────────────────────────────────────────
+grp_diag  = "Diagnostics"
+show_diag = input.bool(true, "Show symbol diagnostic label", group=grp_diag)
+
+var label diag_label = na
+
+if barstate.islast and show_diag
+    string bad = ""
+    bad := na(p_btc)    ? bad + "BTC "     : bad
+    bad := na(p_eth)    ? bad + "ETH "     : bad
+    bad := na(p_sol)    ? bad + "SOL "     : bad
+    bad := na(p_link)   ? bad + "LINK "    : bad
+    bad := na(p_xrp)    ? bad + "XRP "     : bad
+    bad := na(p_near)   ? bad + "NEAR "    : bad
+    bad := na(p_tao)    ? bad + "TAO "     : bad
+    bad := na(p_ondo)   ? bad + "ONDO "    : bad
+    bad := na(p_render) ? bad + "RENDER "  : bad
+    bad := na(p_morpho) ? bad + "MORPHO "  : bad
+    bad := na(p_uni)    ? bad + "UNI "     : bad
+    bad := na(p_pendle) ? bad + "PENDLE "  : bad
+    bad := na(p_jup)    ? bad + "JUP "     : bad
+    bad := na(p_aave)   ? bad + "AAVE "    : bad
+    bad := na(p_hype)   ? bad + "HYPE "    : bad
+    bad := na(p_lit)    ? bad + "LIT "     : bad
+    bad := na(p_ena)    ? bad + "ENA "     : bad
+    bad := na(p_wld)    ? bad + "WLD "     : bad
+    bad := na(p_aero)   ? bad + "AERO "    : bad
+    bad := na(p_sui)    ? bad + "SUI "     : bad
+    bad := na(p_jto)    ? bad + "JTO "     : bad
+    bad := na(p_ton)    ? bad + "TON "     : bad
+    bad := na(p_cc)     ? bad + "CC "      : bad
+    bad := na(p_avax)   ? bad + "AVAX "    : bad
+    bad := na(p_akt)    ? bad + "AKT "     : bad
+    bad := na(p_bnb)    ? bad + "BNB "     : bad
+    bad := na(p_tia)    ? bad + "TIA "     : bad
+    bad := na(p_spx)    ? bad + "SPX6900 " : bad
+    bad := na(p_pump)   ? bad + "PUMP "    : bad
+    bad := na(p_usls)   ? bad + "USELESS " : bad
+    bad := na(p_orbs)   ? bad + "ORBS "    : bad
+    bad := na(p_zec)    ? bad + "ZEC "     : bad
+    bad := na(p_fet)    ? bad + "FET "     : bad
+    bad := na(p_kas)    ? bad + "KAS "     : bad
+    bad := na(p_zro)    ? bad + "ZRO "     : bad
+    bad := na(p_doge)   ? bad + "DOGE "    : bad
+    bad := na(p_floki)  ? bad + "FLOKI "   : bad
+    bad := na(p_mon)    ? bad + "MON "     : bad
+    bad := na(p_drv)    ? bad + "DRV "     : bad
+    bad := na(p_pengu)  ? bad + "PENGU "   : bad
+
+    string msg  = bad == "" ? "[OK] All 40 loaded" : "[BAD] " + bad
+    color  bgc  = bad == "" ? color.new(#1a7f37, 20) : color.new(#ff4444, 10)
+    label.delete(diag_label)
+    diag_label := label.new(bar_index, high, msg,
+     style=label.style_label_lower_left, color=bgc,
+     textcolor=color.white, size=size.small, yloc=yloc.abovebar)
+
+// ─────────────────────────────────────────────
+// TABLE BUILD
+// ─────────────────────────────────────────────
+var table crypto_tbl = table.new(crypto_position, COLS, CRYPTO_ROWS,
+ border_color=C_BORDER, border_width=1, frame_color=C_BORDER, frame_width=2)
+
+if barstate.islast
+    table.clear(crypto_tbl, 0, 0, COLS - 1, CRYPTO_ROWS - 1)
+
+    // ── Actionable summary (in/near zone alert) ───────────────────────────
+    // [P] = TDR Position  [W] = TDR Watch  [H] = You Hold
+    string ca = ""
+    ca := ca + f_action("BTC[P·H]",    p_btc,   72000,75000, 62000,68000, 52000,58000)
+    ca := ca + f_action("ETH[P]",      p_eth,   1950,2050,   1650,1850,   1300,1500)
+    ca := ca + f_action("SOL[W]",      p_sol,   75,82,       60,70,       45,55)
+    ca := ca + f_action("LINK",        p_link,  8.50,9.00,   7.00,8.00,   5.50,6.50)
+    ca := ca + f_action("XRP",         p_xrp,   1.20,1.35,   0.95,1.10,   0.70,0.88)
+    ca := ca + f_action("NEAR",        p_near,  1.20,1.30,   0.95,1.10,   0.75,0.90)
+    ca := ca + f_action("TAO[W]",      p_tao,   210,230,     165,190,     120,150)
+    ca := ca + f_action("ONDO",        p_ondo,  0.32,0.38,   0.22,0.28,   0.14,0.19)
+    ca := ca + f_action("RENDER[H]",   p_render,1.55,1.70,   1.20,1.40,   0.85,1.05)
+    ca := ca + f_action("MORPHO[W]",   p_morpho,1.00,1.20,   0.70,0.90,   0.35,0.55)
+    ca := ca + f_action("UNI[W]",      p_uni,   3.20,3.50,   2.50,2.90,   1.80,2.20)
+    ca := ca + f_action("PENDLE[W]",   p_pendle,1.55,1.75,   1.20,1.40,   0.85,1.10)
+    ca := ca + f_action("JUP[W]",      p_jup,   0.17,0.20,   0.11,0.15,   0.07,0.10)
+    ca := ca + f_action("AAVE[W]",     p_aave,  120,145,     88,110,      55,80)
+    ca := ca + f_action("HYPE[W]",     p_hype,  22,26,       15,20,       10,14)
+    ca := ca + f_action("LIT[P]",      p_lit,   0.85,0.95,   0.65,0.80,   0.45,0.60)
+    ca := ca + f_action("ENA[P·H]",    p_ena,   0.09,0.11,   0.06,0.08,   0.03,0.05)
+    ca := ca + f_action("WLD[P]",      p_wld,   0.22,0.26,   0.14,0.19,   0.07,0.11)
+    ca := ca + f_action("AERO[W]",     p_aero,  0.30,0.38,   0.18,0.26,   0.10,0.16)
+    ca := ca + f_action("SUI[W·H]",    p_sui,   0.78,0.90,   0.55,0.70,   0.35,0.50)
+    ca := ca + f_action("JTO[W]",      p_jto,   0.30,0.38,   0.20,0.28,   0.10,0.18)
+    ca := ca + f_action("TON",         p_ton,   1.80,2.20,   1.30,1.65,   0.85,1.15)
+    ca := ca + f_action("CC[H]",       p_cc,    0.130,0.142, 0.095,0.115, 0.060,0.085)
+    ca := ca + f_action("AVAX[W]",     p_avax,  7.50,8.80,   5.50,6.80,   3.50,4.80)
+    ca := ca + f_action("AKT",         p_akt,   0.78,0.86,   0.62,0.70,   0.42,0.50)
+    ca := ca + f_action("BNB[W]",      p_bnb,   420,490,     310,385,     190,280)
+    ca := ca + f_action("TIA[W]",      p_tia,   2.10,2.50,   1.55,1.90,   0.90,1.30)
+    ca := ca + f_action("ZEC[W]",      p_zec,   450,530,     320,400,     155,265)
+    ca := ca + f_action("ORBS",        p_orbs,  0.0075,0.009,0.005,0.0068,0.0025,0.004)
+    ca := ca + f_action("FET",         p_fet,   0.165,0.185, 0.130,0.148, 0.080,0.092)
+    ca := ca + f_action("KAS",         p_kas,   0.026,0.029, 0.020,0.023, 0.012,0.015)
+    ca := ca + f_action("ZRO",         p_zro,   1.00,1.10,   0.80,0.90,   0.48,0.58)
+    ca := ca + f_action("DRV[P·H]",    p_drv,   0.040,0.048, 0.028,0.036, 0.016,0.022)
+    ca := ca + f_action("PENGU[P·H]",  p_pengu, 0.0060,0.0078,0.0040,0.0055,0.0020,0.0032)
+
+    string cmsg = ca == "" ? "★ NOTHING IN ZONE — POSTURE: DRY POWDER. Waiting for macro + MOVE gate." : "★ IN/AT ZONE: " + ca
+    color  cbg  = ca == "" ? color.new(#21262d, 0) : color.new(#1a7f37, 60)
+    color  ctc  = ca == "" ? color.new(#8b949e, 0) : color.new(#3fb950, 0)
+    f_summary(crypto_tbl, COLS, cmsg, cbg, ctc)
+    f_col_hdrs(crypto_tbl, 1, show_res, "CRYPTO (40)  [P]=TDR Pos  [W]=TDR Watch  [H]=You Hold")
+
+    int r = 2
+
+    // ── TIER S ──────────────────────────────
+    if show_cs
+        f_sect(crypto_tbl, r, COLS, "★  TIER S — CORE HOLDINGS", C_TIER_S, C_S_TXT)
+        r += 1
+        RowBuf bS = f_newbuf()
+        f_push(bS, "BTC [P·H]",  p_btc,  h52_btc,  ath_btc,  low2y_btc,  C_S_TXT, 72000,75000, 62000,68000, 52000,58000, 52000)
+        f_push(bS, "ETH [P]",    p_eth,  h52_eth,  ath_eth,  low2y_eth,  C_S_TXT, 1950,2050,   1650,1850,   1300,1500,   1300)
+        f_push(bS, "SOL [W]",    p_sol,  h52_sol,  ath_sol,  low2y_sol,  C_S_TXT, 75,82,       60,70,       45,55,       0)
+        f_push(bS, "LINK",       p_link, h52_link, ath_link, low2y_link, C_S_TXT, 8.50,9.00,   7.00,8.00,   5.50,6.50,   0)
+        r := f_emit_tier(crypto_tbl, bS, r, show_res, sort_on)
+
+    // ── TIER A ──────────────────────────────
+    if show_ca
+        f_sect(crypto_tbl, r, COLS, "▲  TIER A — HIGH CONVICTION", C_TIER_A, C_A_TXT)
+        r += 1
+        RowBuf bA = f_newbuf()
+        f_push(bA, "XRP",        p_xrp,    h52_xrp,    ath_xrp,    low2y_xrp,    C_A_TXT, 1.20,1.35,   0.95,1.10,   0.70,0.88,   0)
+        f_push(bA, "NEAR",       p_near,   h52_near,   ath_near,   low2y_near,   C_A_TXT, 1.20,1.30,   0.95,1.10,   0.75,0.90,   0)
+        f_push(bA, "TAO [W]",    p_tao,    h52_tao,    ath_tao,    low2y_tao,    C_A_TXT, 210,230,     165,190,     120,150,     0)
+        f_push(bA, "ONDO",       p_ondo,   h52_ondo,   ath_ondo,   low2y_ondo,   C_A_TXT, 0.32,0.38,   0.22,0.28,   0.14,0.19,   0)
+        f_push(bA, "RENDER [H]", p_render, h52_render, ath_render, low2y_render, C_A_TXT, 1.55,1.70,   1.20,1.40,   0.85,1.05,   0)
+        f_push(bA, "MORPHO [W]", p_morpho, h52_morpho, ath_morpho, low2y_morpho, C_A_TXT, 1.00,1.20,   0.70,0.90,   0.35,0.55,   0)
+        f_push(bA, "UNI [W]",    p_uni,    h52_uni,    ath_uni,    low2y_uni,    C_A_TXT, 3.20,3.50,   2.50,2.90,   1.80,2.20,   0)
+        f_push(bA, "PENDLE [W]", p_pendle, h52_pendle, ath_pendle, low2y_pendle, C_A_TXT, 1.55,1.75,   1.20,1.40,   0.85,1.10,   0)
+        f_push(bA, "JUP [W]",    p_jup,    h52_jup,    ath_jup,    low2y_jup,    C_A_TXT, 0.17,0.20,   0.11,0.15,   0.07,0.10,   0)
+        // NEW v6.0 — analyst-estimated levels, verify before trading
+        f_push(bA, "AAVE [W]",   p_aave,   h52_aave,   ath_aave,   low2y_aave,   C_A_TXT, 120,145,     88,110,      55,80,       0)
+        r := f_emit_tier(crypto_tbl, bA, r, show_res, sort_on)
+
+    // ── TIER B ──────────────────────────────
+    if show_cb
+        f_sect(crypto_tbl, r, COLS, "◆  TIER B — VALUATION-SENSITIVE", C_TIER_B, C_B_TXT)
+        r += 1
+        RowBuf bB = f_newbuf()
+        f_push(bB, "HYPE [W]",   p_hype, h52_hype, ath_hype, low2y_hype, C_B_TXT, 22,26,       15,20,       10,14,       0)
+        f_push(bB, "LIT [P]",    p_lit,  h52_lit,  ath_lit,  low2y_lit,  C_B_TXT, 0.85,0.95,   0.65,0.80,   0.45,0.60,   0)
+        f_push(bB, "ENA [P·H]",  p_ena,  h52_ena,  ath_ena,  low2y_ena,  C_B_TXT, 0.09,0.11,   0.06,0.08,   0.03,0.05,   0)
+        f_push(bB, "WLD [P]",    p_wld,  h52_wld,  ath_wld,  low2y_wld,  C_B_TXT, 0.22,0.26,   0.14,0.19,   0.07,0.11,   0)
+        f_push(bB, "AERO [W]",   p_aero, h52_aero, ath_aero, low2y_aero, C_B_TXT, 0.30,0.38,   0.18,0.26,   0.10,0.16,   0)
+        f_push(bB, "SUI [W·H]",  p_sui,  h52_sui,  ath_sui,  low2y_sui,  C_B_TXT, 0.78,0.90,   0.55,0.70,   0.35,0.50,   0)
+        f_push(bB, "JTO [W]",    p_jto,  h52_jto,  ath_jto,  low2y_jto,  C_B_TXT, 0.30,0.38,   0.20,0.28,   0.10,0.18,   0)
+        f_push(bB, "TON",        p_ton,  h52_ton,  ath_ton,  low2y_ton,  C_B_TXT, 1.80,2.20,   1.30,1.65,   0.85,1.15,   0)
+        f_push(bB, "CC [H]",     p_cc,   h52_cc,   ath_cc,   low2y_cc,   C_B_TXT, 0.130,0.142, 0.095,0.115, 0.060,0.085, 0)
+        f_push(bB, "AVAX [W]",   p_avax, h52_avax, ath_avax, low2y_avax, C_B_TXT, 7.50,8.80,   5.50,6.80,   3.50,4.80,   0)
+        f_push(bB, "AKT",        p_akt,  h52_akt,  ath_akt,  low2y_akt,  C_B_TXT, 0.78,0.86,   0.62,0.70,   0.42,0.50,   0)
+        // NEW v6.0 — analyst-estimated levels, verify before trading
+        f_push(bB, "BNB [W]",    p_bnb,  h52_bnb,  ath_bnb,  low2y_bnb,  C_B_TXT, 420,490,     310,385,     190,280,     0)
+        f_push(bB, "TIA [W]",    p_tia,  h52_tia,  ath_tia,  low2y_tia,  C_B_TXT, 2.10,2.50,   1.55,1.90,   0.90,1.30,   0)
+        r := f_emit_tier(crypto_tbl, bB, r, show_res, sort_on)
+
+    // ── TIER C ──────────────────────────────
+    if show_cc
+        f_sect(crypto_tbl, r, COLS, "●  TIER C — SPECULATIVE / CASINO", C_TIER_C, C_C_TXT)
+        r += 1
+        RowBuf bC = f_newbuf()
+        f_push(bC, "SPX6900 [P]",      p_spx,  h52_spx,  ath_spx,  low2y_spx,  C_C_TXT, 0.38,0.42,   0.25,0.32,   0.12,0.18,   0)
+        f_push(bC, "PUMP [P·H] ⚠JUN26",p_pump, h52_pump, ath_pump, low2y_pump, C_C_TXT, 0.0013,0.0017, 0.0008,0.0011, 0.0004,0.0007, 0)
+        f_push(bC, "USELESS [P]",      p_usls, h52_usls, ath_usls, low2y_usls, C_C_TXT, 0.033,0.040, 0.020,0.028, 0.010,0.016, 0)
+        f_push(bC, "ORBS",             p_orbs, h52_orbs, ath_orbs, low2y_orbs, C_C_TXT, 0.0075,0.009,0.005,0.0068,0.0025,0.004,0)
+        f_push(bC, "ZEC [W]",          p_zec,  h52_zec,  ath_zec,  low2y_zec,  C_C_TXT, 450,530,     320,400,     155,265,     0)
+        f_push(bC, "FET",              p_fet,  h52_fet,  ath_fet,  low2y_fet,  C_C_TXT, 0.165,0.185, 0.130,0.148, 0.080,0.092, 0)
+        f_push(bC, "KAS",              p_kas,  h52_kas,  ath_kas,  low2y_kas,  C_C_TXT, 0.026,0.029, 0.020,0.023, 0.012,0.015, 0)
+        f_push(bC, "ZRO",              p_zro,  h52_zro,  ath_zro,  low2y_zro,  C_C_TXT, 1.00,1.10,   0.80,0.90,   0.48,0.58,   0)
+        f_push(bC, "DOGE",             p_doge, h52_doge, ath_doge, low2y_doge, C_C_TXT, 0.073,0.080, 0.053,0.060, 0.028,0.034, 0)
+        f_push(bC, "FLOKI",            p_floki,h52_floki,ath_floki,low2y_floki,C_C_TXT, 0.0000210,0.0000235, 0.0000155,0.0000172, 0.0000082,0.0000095, 0)
+        f_push(bC, "MON [W]",          p_mon,  h52_mon,  ath_mon,  low2y_mon,  C_C_TXT, 0.0188,0.0208, 0.0138,0.0152, 0.0074,0.0085, 0)
+        // NEW v6.0 — TDR Pro positions. VERIFY LEVELS before trading.
+        f_push(bC, "DRV [P·H]",        p_drv,  h52_drv,  ath_drv,  low2y_drv,  C_C_TXT, 0.040,0.048, 0.028,0.036, 0.016,0.022, 0)
+        f_push(bC, "PENGU [P·H]",      p_pengu,h52_pengu,ath_pengu,low2y_pengu,C_C_TXT, 0.0060,0.0078,0.0040,0.0055,0.0020,0.0032,0)
+        r := f_emit_tier(crypto_tbl, bC, r, show_res, sort_on)
