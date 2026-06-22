@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Crypto Portfolio Dashboard</title>
   <style>
-    /* ---- Reset & base ---- */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
@@ -35,7 +34,6 @@
       line-height: 1.5;
     }
 
-    /* ---- Nav ---- */
     nav {
       display: flex;
       align-items: center;
@@ -65,16 +63,9 @@
       font-size: 1rem;
     }
 
-    .nav-right {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-    }
+    .nav-right { display: flex; align-items: center; gap: 1rem; }
 
-    #last-updated {
-      font-size: .8rem;
-      color: var(--muted);
-    }
+    #last-updated { font-size: .8rem; color: var(--muted); }
 
     .refresh-btn {
       display: flex;
@@ -89,15 +80,13 @@
       cursor: pointer;
       transition: background .15s, border-color .15s;
     }
-
     .refresh-btn:hover { background: var(--border); border-color: var(--accent); }
     .refresh-btn.spinning svg { animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ---- Layout ---- */
-    main { max-width: 1280px; margin: 0 auto; padding: 2rem; }
+    main { max-width: 1400px; margin: 0 auto; padding: 2rem; }
 
-    /* ---- Summary cards ---- */
+    /* Summary cards */
     .summary-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -132,21 +121,15 @@
       margin-top: .25rem;
     }
 
-    /* ---- Exchange summary row ---- */
+    /* Exchange summary row */
     .exchange-summary-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 1rem;
       margin-bottom: 1.5rem;
     }
-
-    @media (max-width: 900px) {
-      .exchange-summary-grid { grid-template-columns: repeat(2, 1fr); }
-    }
-
-    @media (max-width: 480px) {
-      .exchange-summary-grid { grid-template-columns: 1fr; }
-    }
+    @media (max-width: 900px) { .exchange-summary-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 480px) { .exchange-summary-grid { grid-template-columns: 1fr; } }
 
     .ex-summary-card {
       background: var(--surface);
@@ -169,48 +152,18 @@
     }
 
     .ex-summary-info { flex: 1; min-width: 0; }
+    .ex-summary-name { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: .2rem; }
+    .ex-summary-value { font-size: 1.2rem; font-weight: 700; letter-spacing: -.3px; }
+    .ex-summary-pct { font-size: .75rem; color: var(--muted); margin-top: .15rem; }
+    .ex-summary-bar-wrap { background: var(--surface2); border-radius: 3px; height: 3px; margin-top: .4rem; overflow: hidden; }
+    .ex-summary-bar { height: 100%; border-radius: 3px; transition: width .6s ease; }
 
-    .ex-summary-name {
-      font-size: .75rem;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: .06em;
-      margin-bottom: .2rem;
-    }
-
-    .ex-summary-value {
-      font-size: 1.2rem;
-      font-weight: 700;
-      letter-spacing: -.3px;
-    }
-
-    .ex-summary-pct {
-      font-size: .75rem;
-      color: var(--muted);
-      margin-top: .15rem;
-    }
-
-    .ex-summary-bar-wrap {
-      background: var(--surface2);
-      border-radius: 3px;
-      height: 3px;
-      margin-top: .4rem;
-      overflow: hidden;
-    }
-
-    .ex-summary-bar {
-      height: 100%;
-      border-radius: 3px;
-      transition: width .6s ease;
-    }
-
-    /* ---- Exchange section ---- */
+    /* Exchange section */
     .exchanges-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(560px, 1fr));
       gap: 1.5rem;
     }
-
     @media (max-width: 640px) {
       .exchanges-grid { grid-template-columns: 1fr; }
       main { padding: 1rem; }
@@ -231,22 +184,9 @@
       border-bottom: 1px solid var(--border);
     }
 
-    .exchange-name-row {
-      display: flex;
-      align-items: center;
-      gap: .75rem;
-    }
-
-    .exchange-dot {
-      width: 10px; height: 10px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    .exchange-name {
-      font-size: 1rem;
-      font-weight: 600;
-    }
+    .exchange-name-row { display: flex; align-items: center; gap: .75rem; }
+    .exchange-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .exchange-name { font-size: 1rem; font-weight: 600; }
 
     .exchange-status {
       font-size: .72rem;
@@ -254,27 +194,17 @@
       border-radius: 20px;
       font-weight: 500;
     }
-
-    .status-ok      { background: rgba(34,197,94,.15);  color: var(--green); }
-    .status-error   { background: rgba(239,68,68,.12);  color: var(--red); }
-    .status-loading { background: rgba(59,130,246,.12); color: var(--accent); }
+    .status-ok           { background: rgba(34,197,94,.15);  color: var(--green); }
+    .status-error        { background: rgba(239,68,68,.12);  color: var(--red); }
+    .status-loading      { background: rgba(59,130,246,.12); color: var(--accent); }
     .status-unconfigured { background: rgba(122,138,171,.12); color: var(--muted); }
 
-    .exchange-total {
-      font-size: 1.05rem;
-      font-weight: 700;
-    }
+    .exchange-total { font-size: 1.05rem; font-weight: 700; }
 
-    /* ---- Positions table ---- */
-    .positions-table-wrap {
-      overflow-x: auto;
-    }
+    /* Table */
+    .positions-table-wrap { overflow-x: auto; }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: .85rem;
-    }
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
 
     thead th {
       padding: .6rem 1.5rem;
@@ -286,7 +216,6 @@
       font-weight: 500;
       border-bottom: 1px solid var(--border);
     }
-
     thead th:last-child { text-align: right; }
 
     tbody tr { transition: background .1s; }
@@ -296,22 +225,15 @@
       padding: .75rem 1.5rem;
       border-bottom: 1px solid var(--border);
     }
-
     tbody tr:last-child td { border-bottom: none; }
 
-    .coin-cell {
-      display: flex;
-      align-items: center;
-      gap: .65rem;
-    }
+    .coin-cell { display: flex; align-items: center; gap: .65rem; }
 
     .coin-icon {
       width: 32px; height: 32px;
       border-radius: 50%;
       background: var(--surface2);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       font-size: .7rem;
       font-weight: 700;
       color: var(--text);
@@ -319,9 +241,8 @@
       border: 1px solid var(--border);
     }
 
-    .coin-symbol { font-weight: 600; }
+    .coin-symbol { font-weight: 600; line-height: 1.3; }
     .coin-name   { font-size: .75rem; color: var(--muted); margin-top: 1px; }
-
     .amount-col  { color: var(--muted); }
     .value-col   { text-align: right; font-weight: 600; }
 
@@ -341,10 +262,9 @@
       font-size: .85rem;
       background: rgba(239,68,68,.06);
     }
-
     .error-msg svg { flex-shrink: 0; margin-top: 1px; }
 
-    /* ---- Skeleton loader ---- */
+    /* Skeleton */
     .skeleton {
       animation: pulse 1.6s ease-in-out infinite;
       background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
@@ -352,15 +272,13 @@
       border-radius: 6px;
       height: 14px;
     }
-
     @keyframes pulse {
       0%   { background-position: 200% 0; }
       100% { background-position: -200% 0; }
     }
-
     .skeleton-row td { padding: .75rem 1.5rem; }
 
-    /* ---- Manual badge ---- */
+    /* Badges */
     .manual-badge {
       font-size: .65rem;
       padding: .15rem .5rem;
@@ -372,11 +290,6 @@
       vertical-align: middle;
     }
 
-    /* ---- PnL colors ---- */
-    .pnl-pos { color: var(--green); }
-    .pnl-neg { color: var(--red); }
-
-    /* ---- Stablecoin badge ---- */
     .stable-badge {
       font-size: .65rem;
       padding: .1rem .35rem;
@@ -387,31 +300,86 @@
       vertical-align: middle;
     }
 
-    /* ---- Footer ---- */
+    /* TDR / Tier / Held badges */
+    .tdr-badge {
+      font-size: .62rem;
+      padding: .1rem .42rem;
+      border-radius: 4px;
+      font-weight: 700;
+      margin-left: .3rem;
+      vertical-align: middle;
+      letter-spacing: .02em;
+    }
+    .tdr-pos   { background: rgba(34,197,94,.15);  color: var(--green); border: 1px solid rgba(34,197,94,.3); }
+    .tdr-watch { background: rgba(59,130,246,.12); color: var(--accent); border: 1px solid rgba(59,130,246,.28); }
+
+    .held-badge {
+      font-size: .62rem;
+      padding: .1rem .42rem;
+      border-radius: 4px;
+      font-weight: 700;
+      margin-left: .3rem;
+      vertical-align: middle;
+      background: rgba(245,158,11,.15);
+      color: var(--gold);
+      border: 1px solid rgba(245,158,11,.3);
+    }
+
+    .tier-badge {
+      font-size: .62rem;
+      padding: .1rem .38rem;
+      border-radius: 4px;
+      font-weight: 800;
+      vertical-align: middle;
+      letter-spacing: .02em;
+      display: inline-block;
+    }
+    .tier-s { background: rgba(250,204,21,.15); color: #fbbf24; border: 1px solid rgba(250,204,21,.3); }
+    .tier-a { background: rgba(59,130,246,.12); color: var(--accent); border: 1px solid rgba(59,130,246,.25); }
+    .tier-b { background: rgba(168,85,247,.12); color: #a855f7; border: 1px solid rgba(168,85,247,.25); }
+    .tier-c { background: rgba(239,68,68,.1);  color: var(--red); border: 1px solid rgba(239,68,68,.2); }
+
+    /* PnL */
+    .pnl-pos { color: var(--green); }
+    .pnl-neg { color: var(--red); }
+
+    /* Section header */
+    .section-title-row {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: .6rem 1rem;
+      margin: 2.5rem 0 1rem;
+      padding-bottom: .6rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-title-row h2 { font-size: 1.05rem; font-weight: 700; }
+    .section-title-row .sub-label { font-size: .8rem; color: var(--muted); }
+    .section-title-row .wl-count { font-size: .8rem; color: var(--muted); margin-left: auto; }
+
+    /* Alloc bar */
+    .alloc-bar-wrap { background: var(--surface2); border-radius: 4px; height: 6px; overflow: hidden; margin-top: .5rem; }
+    .alloc-bar { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), #8b5cf6); transition: width .6s ease; }
+
     footer {
       text-align: center;
       color: var(--muted);
       font-size: .75rem;
       padding: 2.5rem 1rem;
     }
-
     footer a { color: var(--accent); text-decoration: none; }
 
-    /* ---- Allocation bar ---- */
-    .alloc-bar-wrap {
-      background: var(--surface2);
-      border-radius: 4px;
-      height: 6px;
-      overflow: hidden;
-      margin-top: .5rem;
+    /* Legend */
+    .badge-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      margin-top: .75rem;
+      font-size: .75rem;
+      color: var(--muted);
+      align-items: center;
     }
-
-    .alloc-bar {
-      height: 100%;
-      border-radius: 4px;
-      background: linear-gradient(90deg, var(--accent), #8b5cf6);
-      transition: width .6s ease;
-    }
+    .badge-legend span { display: flex; align-items: center; gap: .3rem; }
   </style>
 </head>
 <body>
@@ -435,7 +403,7 @@
 
 <main>
   <!-- Summary strip -->
-  <div class="summary-grid" id="summary-grid">
+  <div class="summary-grid">
     <div class="summary-card">
       <div class="label">Total Portfolio</div>
       <div class="value" id="total-value">—</div>
@@ -465,18 +433,49 @@
   </div>
 
   <!-- Exchange breakdown -->
-  <div class="exchange-summary-grid" id="exchange-summary-grid">
-    <!-- Injected by JS -->
-  </div>
+  <div class="exchange-summary-grid" id="exchange-summary-grid"></div>
 
   <!-- Exchange cards -->
-  <div class="exchanges-grid" id="exchanges-grid">
-    <!-- Injected by JS -->
+  <div class="exchanges-grid" id="exchanges-grid"></div>
+
+  <!-- TDR Pro Radar -->
+  <div class="section-title-row">
+    <h2>TDR Pro Radar</h2>
+    <span class="sub-label">Active positions &amp; watchlist · Pine Script tiers</span>
+    <span class="wl-count" id="watchlist-count">Loading…</span>
+  </div>
+
+  <div class="badge-legend">
+    <span><span class="tdr-badge tdr-pos" style="margin:0">TDR</span> TDR Pro holds</span>
+    <span><span class="tdr-badge tdr-watch" style="margin:0">WATCH</span> Watchlist only</span>
+    <span><span class="held-badge" style="margin:0">HELD</span> You hold this</span>
+    <span><span class="tier-badge tier-s" style="">S</span><span class="tier-badge tier-a">A</span><span class="tier-badge tier-b">B</span><span class="tier-badge tier-c">C</span> Pine Script tier</span>
+  </div>
+
+  <div class="exchange-card" style="margin-top:.75rem">
+    <div class="positions-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Tier</th>
+            <th>Asset</th>
+            <th>Status</th>
+            <th style="text-align:right">Price</th>
+            <th style="text-align:right">24h</th>
+          </tr>
+        </thead>
+        <tbody id="watchlist-rows">
+          <tr class="skeleton-row"><td><div class="skeleton" style="width:26px"></div></td><td><div class="skeleton" style="width:130px"></div></td><td><div class="skeleton" style="width:55px"></div></td><td><div class="skeleton" style="width:70px;margin-left:auto"></div></td><td><div class="skeleton" style="width:50px;margin-left:auto"></div></td></tr>
+          <tr class="skeleton-row"><td><div class="skeleton" style="width:26px"></div></td><td><div class="skeleton" style="width:100px"></div></td><td><div class="skeleton" style="width:70px"></div></td><td><div class="skeleton" style="width:80px;margin-left:auto"></div></td><td><div class="skeleton" style="width:50px;margin-left:auto"></div></td></tr>
+          <tr class="skeleton-row"><td><div class="skeleton" style="width:26px"></div></td><td><div class="skeleton" style="width:115px"></div></td><td><div class="skeleton" style="width:60px"></div></td><td><div class="skeleton" style="width:65px;margin-left:auto"></div></td><td><div class="skeleton" style="width:50px;margin-left:auto"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </main>
 
 <footer>
-  Prices from <a href="https://coingecko.com" target="_blank">CoinGecko</a> · Data refreshes on demand · Keep API keys in <code>.env</code>
+  Prices from exchange public APIs &middot; Data refreshes on demand &middot; Keep API keys in <code>.env</code>
 </footer>
 
 <script>
@@ -488,47 +487,95 @@ const EXCHANGES = [
 ];
 
 const STABLECOINS = new Set(["USDT","USDC","BUSD","DAI","TUSD","USDP","GUSD","USD","EUR","GBP","JPY","CAD"]);
+
+// TDR Pro & Pine Script data
+const TDR_POSITIONS = new Set([
+  "BTC","ETH","LIT","PUMP","ENA","WLD","COIN","CRCL","PENGU","SPX6900","USELESS","DRV",
+]);
+const TDR_WATCHLIST = new Set([
+  "BTC","PUMP","LIT","WLD","ENA","DRV","USELESS","ETH","CRCL","PENGU","COIN",
+  "AERO","TAO","MON","TIA","SUI","AVAX","BNB","GLXY","HOOD","ZCASH","HYPE",
+  "BONK","DOUBLEZERO","RAY","JUP","JTO","KAMINO","SOL","VVV","PEPE","UNI",
+  "AAVE","PENDLE","MORPHO",
+]);
+const PINE_TIER_DATA = {
+  S: ["BTC","ETH","SOL","LINK"],
+  A: ["XRP","NEAR","TAO","ONDO","RENDER","MORPHO","UNI","PENDLE","JUP"],
+  B: ["HYPE","LIT","ENA","WLD","AERO","SUI","JTO","TON","CC","AVAX","AKT"],
+  C: ["SPX6900","PUMP","USELESS","ORBS","ZEC","FET","KAS","ZRO","DOGE","FLOKI","MON"],
+};
+const TIER_MAP = {};
+for (const [t, syms] of Object.entries(PINE_TIER_DATA)) for (const s of syms) TIER_MAP[s] = t;
+
+// User-held: hardcoded + extended from live exchange data
+const USER_HELD = new Set(["PLTR","ENA","DRV","PUMP","SUI"]);
+
 const COIN_NAMES = {
-  BTC:"Bitcoin", ETH:"Ethereum", SOL:"Solana", XRP:"Ripple", ADA:"Cardano",
-  DOGE:"Dogecoin", DOT:"Polkadot", MATIC:"Polygon", AVAX:"Avalanche",
-  LINK:"Chainlink", UNI:"Uniswap", ATOM:"Cosmos", LTC:"Litecoin",
-  BCH:"Bitcoin Cash", ALGO:"Algorand", XLM:"Stellar", VET:"VeChain",
-  NEAR:"NEAR Protocol", FTM:"Fantom", SHIB:"Shiba Inu", TRX:"TRON",
-  ETC:"Ethereum Classic", XMR:"Monero", AAVE:"Aave", MKR:"Maker",
+  BTC:"Bitcoin", ETH:"Ethereum", SOL:"Solana", LINK:"Chainlink", XRP:"Ripple",
+  LIT:"Litentry", ENA:"Ethena", WLD:"Worldcoin", PENGU:"Pengu",
+  SPX6900:"SPX6900", USELESS:"Useless", DRV:"DRV", PUMP:"Pump.fun",
+  CRCL:"Circle", COIN:"Coinbase",
+  AERO:"Aerodrome", TAO:"Bittensor", MON:"Monad", TIA:"Celestia",
+  SUI:"Sui", AVAX:"Avalanche", BNB:"BNB Chain", GLXY:"Galaxy Digital",
+  HOOD:"Robinhood", ZCASH:"ZCash", HYPE:"Hyperliquid", BONK:"Bonk",
+  DOUBLEZERO:"DoubleZero", RAY:"Raydium", JUP:"Jupiter", JTO:"Jito",
+  KAMINO:"Kamino", VVV:"Venice", PEPE:"Pepe", UNI:"Uniswap",
+  AAVE:"Aave", PENDLE:"Pendle", MORPHO:"Morpho",
+  NEAR:"NEAR Protocol", ONDO:"Ondo Finance", RENDER:"Render",
+  ORBS:"Orbs", ZEC:"ZCash", FET:"Fetch.ai", KAS:"Kaspa",
+  ZRO:"LayerZero", DOGE:"Dogecoin", FLOKI:"Floki",
+  CC:"Crypto Cart", AKT:"Akash Network", TON:"Toncoin",
+  PLTR:"Palantir",
   USDT:"Tether", USDC:"USD Coin", BUSD:"Binance USD", DAI:"Dai",
 };
 
 function fmt(n) {
-  if (n === null || n === undefined) return "—";
-  if (n >= 1e9)  return "$" + (n/1e9).toFixed(2)  + "B";
-  if (n >= 1e6)  return "$" + (n/1e6).toFixed(2)  + "M";
-  if (n >= 1e3)  return "$" + (n/1e3).toFixed(2)  + "K";
-  if (n >= 1)    return "$" + n.toFixed(2);
+  if (n == null) return "—";
+  if (n >= 1e9) return "$" + (n/1e9).toFixed(2) + "B";
+  if (n >= 1e6) return "$" + (n/1e6).toFixed(2) + "M";
+  if (n >= 1e3) return "$" + (n/1e3).toFixed(2) + "K";
+  if (n >= 1)   return "$" + n.toFixed(2);
+  return "$" + n.toPrecision(4);
+}
+
+function fmtPrice(n) {
+  if (n == null) return "—";
+  if (n >= 1000) return "$" + n.toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2});
+  if (n >= 1)    return "$" + n.toFixed(4);
   return "$" + n.toPrecision(4);
 }
 
 function fmtAmt(n) {
-  if (n >= 1e6)  return (n/1e6).toFixed(2) + "M";
-  if (n >= 1e3)  return (n/1e3).toFixed(2) + "K";
-  if (n >= 1)    return n.toFixed(4);
+  if (n >= 1e6) return (n/1e6).toFixed(2) + "M";
+  if (n >= 1e3) return (n/1e3).toFixed(2) + "K";
+  if (n >= 1)   return n.toFixed(4);
   return n.toPrecision(4);
 }
 
-function coinInitial(sym) {
-  return sym.slice(0,3);
-}
+function coinInitial(sym) { return sym.slice(0,3); }
 
-// Colour palette for coin icons
 const ICON_COLORS = {
   BTC:"#f7931a", ETH:"#627eea", SOL:"#9945ff", XRP:"#0085c0",
-  ADA:"#0033ad", DOGE:"#c2a633", DOT:"#e6007a", MATIC:"#8247e5",
-  AVAX:"#e84142", LINK:"#2a5ada", BNB:"#f0b90b", USDT:"#26a17b",
-  USDC:"#2775ca", LTC:"#bfbbbb", SHIB:"#ffa409",
+  AVAX:"#e84142", LINK:"#2a5ada", BNB:"#f0b90b",
+  USDT:"#26a17b", USDC:"#2775ca", SUI:"#4da2ff",
+  AAVE:"#b6509e", UNI:"#ff007a", PEPE:"#5ab552",
+  BONK:"#f7931a", DOGE:"#c2a633",
 };
 
 function iconStyle(sym) {
   const c = ICON_COLORS[sym];
   return c ? `background:${c}20; color:${c}; border-color:${c}40;` : "";
+}
+
+function tdrBadgeHtml(sym) {
+  if (TDR_POSITIONS.has(sym)) return `<span class="tdr-badge tdr-pos" title="TDR Pro Position">TDR</span>`;
+  if (TDR_WATCHLIST.has(sym)) return `<span class="tdr-badge tdr-watch" title="TDR Pro Watchlist">WATCH</span>`;
+  return "";
+}
+
+function tierBadgeHtml(sym) {
+  const t = TIER_MAP[sym];
+  return t ? `<span class="tier-badge tier-${t.toLowerCase()}" title="Pine Script Tier ${t}">${t}</span>` : `<span style="color:var(--muted)">—</span>`;
 }
 
 function buildSkeletonRows(n=3) {
@@ -580,8 +627,7 @@ function renderExchange(data) {
       <div class="${isUnconfigured ? "no-positions" : "error-msg"}">
         ${isUnconfigured
           ? `Add your <strong>${data.exchange}</strong> API keys to <code>.env</code> and restart.`
-          : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-             ${data.error}`}
+          : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> ${data.error}`}
       </div>`;
     return 0;
   }
@@ -596,7 +642,6 @@ function renderExchange(data) {
     return 0;
   }
 
-  // Sort by USD value desc; nulls last
   positions.sort((a,b) => {
     if (a.usd_value === null) return 1;
     if (b.usd_value === null) return -1;
@@ -611,12 +656,14 @@ function renderExchange(data) {
   totalEl.textContent = fmt(total);
 
   if (isManual) {
-    const nameRow = document.getElementById(`card-${data.exchange.toLowerCase()}`).querySelector(".exchange-name-row");
-    const badge = document.createElement("span");
-    badge.className = "manual-badge";
-    badge.title = "Showing manually entered data — add API key for live data";
-    badge.textContent = "manual";
-    nameRow.appendChild(badge);
+    const nameRow = document.getElementById(`card-${id}`).querySelector(".exchange-name-row");
+    if (!nameRow.querySelector(".manual-badge")) {
+      const badge = document.createElement("span");
+      badge.className = "manual-badge";
+      badge.title = "Manually entered data — add API key for live data";
+      badge.textContent = "manual";
+      nameRow.appendChild(badge);
+    }
   }
 
   rowsEl.innerHTML = positions.map(p => {
@@ -624,6 +671,7 @@ function renderExchange(data) {
     const isStable = STABLECOINS.has(sym);
     const name     = COIN_NAMES[sym] || "";
     const isEquity = p.asset_type === "equity";
+    const isCash   = p.asset_type === "cash";
 
     let pnlCell;
     if (p.pnl !== null && p.pnl !== undefined) {
@@ -637,13 +685,18 @@ function renderExchange(data) {
       pnlCell = `<td class="value-col" style="color:var(--muted)">—</td>`;
     }
 
+    const stableBadge  = isStable ? `<span class="stable-badge">stable</span>` : "";
+    const stockBadge   = isEquity ? `<span class="stable-badge" style="background:rgba(59,130,246,.15);color:var(--accent)">stock</span>` : "";
+    const cashBadge    = isCash   ? `<span class="stable-badge">cash</span>` : "";
+    const tdrBadge     = (!isStable && !isCash) ? tdrBadgeHtml(sym) : "";
+
     return `
       <tr>
         <td>
           <div class="coin-cell">
             <div class="coin-icon" style="${iconStyle(sym)}">${coinInitial(sym)}</div>
             <div>
-              <div class="coin-symbol">${sym}${isStable ? '<span class="stable-badge">stable</span>' : ""}${isEquity ? '<span class="stable-badge" style="background:rgba(59,130,246,.15);color:var(--accent)">stock</span>' : ""}${p.asset_type==="cash" ? '<span class="stable-badge">cash</span>' : ""}</div>
+              <div class="coin-symbol">${sym}${stableBadge}${stockBadge}${cashBadge}${tdrBadge}</div>
               ${name ? `<div class="coin-name">${name}</div>` : ""}
             </div>
           </div>
@@ -668,7 +721,6 @@ function updateSummary(totals, exchangeData) {
   document.getElementById("active-exchanges").textContent = activeCount;
   document.getElementById("total-positions").textContent = uniqueAssets || "—";
 
-  // Top asset across all exchanges
   const byAsset = {};
   for (const p of allPositions) {
     if (p.usd_value) byAsset[p.symbol] = (byAsset[p.symbol] || 0) + p.usd_value;
@@ -681,14 +733,9 @@ function updateSummary(totals, exchangeData) {
     document.getElementById("alloc-bar").style.width = pct + "%";
   }
 
-  // Total return across all positions that have a cost basis
-  const withCost = allPositions.filter(p => p.pnl != null);
+  const withCost      = allPositions.filter(p => p.pnl != null);
   const totalPnl      = withCost.reduce((s, p) => s + p.pnl, 0);
-  const totalCostBasis = withCost.reduce((s, p) => {
-    const qty   = p.amount || 0;
-    const cost  = p.cost_price || 0;
-    return s + qty * cost;
-  }, 0);
+  const totalCostBasis = withCost.reduce((s, p) => s + (p.amount || 0) * (p.cost_price || 0), 0);
 
   const retEl    = document.getElementById("total-return");
   const retSubEl = document.getElementById("total-return-sub");
@@ -706,7 +753,6 @@ function updateSummary(totals, exchangeData) {
   }
 }
 
-// Per-exchange totals tracked for summary updates
 const _totals = {};
 const _exchangeData = {};
 
@@ -714,6 +760,9 @@ async function loadExchange(exId) {
   try {
     const resp = await fetch(`/api/positions/${exId}`);
     const data = await resp.json();
+    for (const p of (data.positions || [])) {
+      if (p.symbol && p.amount > 0) USER_HELD.add(p.symbol);
+    }
     const total = renderExchange(data);
     _totals[exId] = total || 0;
     _exchangeData[exId] = data;
@@ -724,12 +773,68 @@ async function loadExchange(exId) {
   }
 }
 
+function renderWatchlist(data) {
+  const rows = data.watchlist || [];
+  document.getElementById("watchlist-count").textContent = `${rows.length} tickers`;
+
+  const rowsEl = document.getElementById("watchlist-rows");
+  if (!rows.length) {
+    rowsEl.innerHTML = `<tr><td colspan="5" class="no-positions">No watchlist data available.</td></tr>`;
+    return;
+  }
+
+  rowsEl.innerHTML = rows.map(r => {
+    const name     = COIN_NAMES[r.symbol] || "";
+    const isHeld   = r.user_held || USER_HELD.has(r.symbol);
+    const heldHtml = isHeld ? `<span class="held-badge" title="You hold this asset">HELD</span>` : "";
+
+    const statusHtml = r.tdr_status === "POS"
+      ? `<span class="tdr-badge tdr-pos">TDR</span>`
+      : `<span class="tdr-badge tdr-watch">WATCH</span>`;
+
+    let changeHtml = `<span style="color:var(--muted)">—</span>`;
+    if (r.change_pct != null) {
+      const cls  = r.change_pct >= 0 ? "pnl-pos" : "pnl-neg";
+      const sign = r.change_pct >= 0 ? "+" : "";
+      changeHtml = `<span class="${cls}">${sign}${r.change_pct.toFixed(2)}%</span>`;
+    }
+
+    return `
+      <tr>
+        <td>${tierBadgeHtml(r.symbol)}</td>
+        <td>
+          <div class="coin-cell">
+            <div class="coin-icon" style="${iconStyle(r.symbol)}">${coinInitial(r.symbol)}</div>
+            <div>
+              <div class="coin-symbol">${r.symbol}</div>
+              ${name ? `<div class="coin-name">${name}</div>` : ""}
+            </div>
+          </div>
+        </td>
+        <td>${statusHtml}${heldHtml}</td>
+        <td class="value-col">${r.price != null ? fmtPrice(r.price) : '<span style="color:var(--muted)">—</span>'}</td>
+        <td class="value-col">${changeHtml}</td>
+      </tr>`;
+  }).join("");
+}
+
+async function loadWatchlist() {
+  try {
+    const resp = await fetch("/api/watchlist");
+    const data = await resp.json();
+    renderWatchlist(data);
+  } catch(err) {
+    document.getElementById("watchlist-rows").innerHTML =
+      `<tr><td colspan="5" class="no-positions">Failed to load watchlist.</td></tr>`;
+    document.getElementById("watchlist-count").textContent = "Error";
+  }
+}
+
 async function loadAll() {
   const btn = document.getElementById("refresh-btn");
   btn.disabled = true;
   btn.classList.add("spinning");
 
-  // Reset skeletons
   EXCHANGES.forEach(ex => {
     const rowsEl = document.getElementById(`rows-${ex.id}`);
     if (rowsEl) rowsEl.innerHTML = buildSkeletonRows();
@@ -737,16 +842,18 @@ async function loadAll() {
     if (statusEl) { statusEl.textContent = "Loading…"; statusEl.className = "exchange-status status-loading"; }
     const totalEl = document.getElementById(`total-${ex.id}`);
     if (totalEl) totalEl.textContent = "—";
-    // Remove manual badge if present
-    const card = document.getElementById(`card-${ex.id}`);
-    card?.querySelectorAll(".manual-badge").forEach(b => b.remove());
-    // Reset PnL header column
-    const th = card?.querySelector("thead tr");
-    if (th && th.children.length > 3) th.removeChild(th.lastElementChild);
+    document.getElementById(`card-${ex.id}`)?.querySelectorAll(".manual-badge").forEach(b => b.remove());
   });
 
-  // Fire all fetches concurrently — each card renders as soon as its data arrives
-  await Promise.allSettled(EXCHANGES.map(ex => loadExchange(ex.id)));
+  document.getElementById("watchlist-count").textContent = "Loading…";
+  document.getElementById("watchlist-rows").innerHTML = `
+    <tr class="skeleton-row"><td><div class="skeleton" style="width:26px"></div></td><td><div class="skeleton" style="width:130px"></div></td><td><div class="skeleton" style="width:55px"></div></td><td><div class="skeleton" style="width:70px;margin-left:auto"></div></td><td><div class="skeleton" style="width:50px;margin-left:auto"></div></td></tr>
+    <tr class="skeleton-row"><td><div class="skeleton" style="width:26px"></div></td><td><div class="skeleton" style="width:100px"></div></td><td><div class="skeleton" style="width:70px"></div></td><td><div class="skeleton" style="width:80px;margin-left:auto"></div></td><td><div class="skeleton" style="width:50px;margin-left:auto"></div></td></tr>`;
+
+  await Promise.allSettled([
+    ...EXCHANGES.map(ex => loadExchange(ex.id)),
+    loadWatchlist(),
+  ]);
 
   document.getElementById("last-updated").textContent =
     "Updated " + new Date().toLocaleTimeString();
@@ -761,7 +868,7 @@ function buildExchangeSummaryCards() {
     card.className = "ex-summary-card";
     card.id = `ex-sum-${ex.id}`;
     card.innerHTML = `
-      <div class="ex-summary-icon" id="ex-sum-icon-${ex.id}" style="background:${ex.color}18; color:${ex.color}; border:1px solid ${ex.color}30">
+      <div class="ex-summary-icon" style="background:${ex.color}18; color:${ex.color}; border:1px solid ${ex.color}30">
         ${ex.label.slice(0,3).toUpperCase()}
       </div>
       <div class="ex-summary-info">
@@ -779,21 +886,19 @@ function buildExchangeSummaryCards() {
 function updateExchangeSummaryCards(totals, exchangeData) {
   const grand = Object.values(totals).reduce((s, t) => s + t, 0);
   EXCHANGES.forEach(ex => {
-    const total  = totals[ex.id] || 0;
-    const data   = exchangeData[ex.id];
-    const pct    = grand > 0 ? (total / grand * 100) : 0;
-    const valEl  = document.getElementById(`ex-sum-val-${ex.id}`);
-    const pctEl  = document.getElementById(`ex-sum-pct-${ex.id}`);
-    const barEl  = document.getElementById(`ex-sum-bar-${ex.id}`);
-
-    valEl.textContent = total > 0 ? fmt(total) : (data?.error ? "Error" : "—");
-    pctEl.textContent = total > 0 ? `${pct.toFixed(1)}% of portfolio` : (data?.error ? data.error.slice(0,40) : "No positions");
+    const total = totals[ex.id] || 0;
+    const data  = exchangeData[ex.id];
+    const pct   = grand > 0 ? (total / grand * 100) : 0;
+    document.getElementById(`ex-sum-val-${ex.id}`).textContent =
+      total > 0 ? fmt(total) : (data?.error ? "Error" : "—");
+    const pctEl = document.getElementById(`ex-sum-pct-${ex.id}`);
+    pctEl.textContent = total > 0 ? `${pct.toFixed(1)}% of portfolio`
+                      : (data?.error ? data.error.slice(0,40) : "No positions");
     pctEl.style.color = data?.error ? "var(--red)" : "";
-    barEl.style.width = pct.toFixed(1) + "%";
+    document.getElementById(`ex-sum-bar-${ex.id}`).style.width = pct.toFixed(1) + "%";
   });
 }
 
-// Build shells immediately so layout is visible before data arrives
 (function init() {
   buildExchangeSummaryCards();
   const grid = document.getElementById("exchanges-grid");

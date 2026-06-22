@@ -25,6 +25,28 @@ def _safe_float(v, default=0.0):
 
 STABLECOINS = {"USD", "USDT", "USDC", "BUSD", "DAI", "TUSD", "USDP", "GUSD", "EUR", "GBP", "JPY", "CAD"}
 
+# ---------------------------------------------------------------------------
+# TDR Pro Radar — positions, watchlist, Pine Script tiers
+# ---------------------------------------------------------------------------
+_TDR_POSITIONS = frozenset([
+    "BTC", "ETH", "LIT", "PUMP", "ENA", "WLD", "COIN", "CRCL",
+    "PENGU", "SPX6900", "USELESS", "DRV",
+])
+_TDR_WATCHLIST = frozenset([
+    "BTC", "PUMP", "LIT", "WLD", "ENA", "DRV", "USELESS", "ETH", "CRCL",
+    "PENGU", "COIN", "AERO", "TAO", "MON", "TIA", "SUI", "AVAX", "BNB",
+    "GLXY", "HOOD", "ZCASH", "HYPE", "BONK", "DOUBLEZERO", "RAY", "JUP",
+    "JTO", "KAMINO", "SOL", "VVV", "PEPE", "UNI", "AAVE", "PENDLE", "MORPHO",
+])
+_PINE_TIERS = {
+    "S": ["BTC", "ETH", "SOL", "LINK"],
+    "A": ["XRP", "NEAR", "TAO", "ONDO", "RENDER", "MORPHO", "UNI", "PENDLE", "JUP"],
+    "B": ["HYPE", "LIT", "ENA", "WLD", "AERO", "SUI", "JTO", "TON", "CC", "AVAX", "AKT"],
+    "C": ["SPX6900", "PUMP", "USELESS", "ORBS", "ZEC", "FET", "KAS", "ZRO", "DOGE", "FLOKI", "MON"],
+}
+_USER_HELD_CRYPTO = frozenset(["ENA", "DRV", "PUMP", "SUI", "PENGU", "CC", "BTC", "ETH", "RENDER"])
+_PRICE_ALIAS = {"ZCASH": "ZEC"}
+
 
 def _load_cost_basis() -> dict:
     path = os.path.join(os.path.dirname(__file__), "cost_basis.json")
@@ -423,6 +445,54 @@ def positions_single(exchange: str):
     if not fn:
         return jsonify({"error": "Unknown exchange"}), 404
     return jsonify(fn())
+
+
+@app.route("/api/watchlist")
+def watchlist_route():
+    all_symbols = _TDR_POSITIONS | _TDR_WATCHLIST
+    tier_map = {sym: t for t, syms in _PINE_TIERS.items() for sym in syms}
+
+    prices: dict[str, dict] = {}
+    try:
+        tld = os.getenv("BINANCE_TLD", "com").strip()
+        raw = requests.get(
+            f"https://api.binance.{tld}/api/v3/ticker/24hr", timeout=12
+        ).json()
+        ticker_data = {t["symbol"]: t for t in raw}
+        for sym in all_symbols:
+            if sym in STABLECOINS:
+                prices[sym] = {"price": 1.0, "change_pct": 0.0}
+                continue
+            lookup = _PRICE_ALIAS.get(sym, sym)
+            for quote in ("USDT", "USD", "USDC"):
+                td = ticker_data.get(f"{lookup}{quote}")
+                if td:
+                    prices[sym] = {
+                        "price":      _safe_float(td.get("lastPrice")),
+                        "change_pct": _safe_float(td.get("priceChangePercent")),
+                    }
+                    break
+    except Exception:
+        pass
+
+    tier_order = {"S": 0, "A": 1, "B": 2, "C": 3}
+    result = []
+    for sym in all_symbols:
+        pd = prices.get(sym, {})
+        result.append({
+            "symbol":     sym,
+            "tdr_status": "POS" if sym in _TDR_POSITIONS else "WATCH",
+            "tier":       tier_map.get(sym),
+            "user_held":  sym in _USER_HELD_CRYPTO,
+            "price":      pd.get("price"),
+            "change_pct": pd.get("change_pct"),
+        })
+    result.sort(key=lambda x: (
+        0 if x["tdr_status"] == "POS" else 1,
+        tier_order.get(x["tier"], 4),
+        x["symbol"],
+    ))
+    return jsonify({"watchlist": result, "fetched_at": datetime.utcnow().isoformat() + "Z"})
 
 
 @app.route("/api/debug/okx")
