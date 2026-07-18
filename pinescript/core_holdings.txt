@@ -1,0 +1,653 @@
+// ============================================================
+// TRANCHE ENTRY DASHBOARD — SCRIPT 1: CORE HOLDINGS
+// v8.0 — 2026-07-18 — Split from v7.0 (40-symbol single script)
+//
+// THIS IS SCRIPT 1 OF 2:
+//   Script 1 (this file): CORE HOLDINGS       — 27 symbols
+//   Script 2 (separate):  SPECULATIVE/UPSIDE  — 20 symbols
+//   Both fit under the Pine non-pro 40-request cap with room to spare.
+//
+// PRICE TARGETS — FULLY RESTATED v8.0 (do not reuse old levels):
+//   Every T1/T2/T3 ladder was rebuilt from actual Jan–Jul 2026 price
+//   history + 52-week ranges researched per ticker (web research,
+//   Jul 18 2026) and calibrated for the Q4 2026 BTC CYCLE LOW thesis:
+//     • Polymarket: 4–5% odds BTC makes a new ATH in 2026; cycle low
+//       expected Q4 2026; Nov/Dec priced as BTC's best months.
+//     • Polymarket: ETH 51% odds it touches $1,000 BEFORE $3,000
+//       → ETH T2/T3 extended into the $1,000–1,300 zone.
+//     • Polymarket: SOL 79% odds it hits $60 BEFORE $140
+//       → SOL T1 centered on $60–67 (high-probability magnet).
+//   FIX FOR MISSED BUYS: previous ladders sat too deep and never
+//   filled. v8.0 T1 zones are ~8–20% below spot (reachable pullback,
+//   most anchored to a 2026 low that ALREADY traded), T2 ~25–40%
+//   (mid-correction / 52w-low retest), T3 ~45–60% (Q4 capitulation,
+//   anchored to real multi-year support — not fantasy discounts).
+//
+// KEY RESEARCH NOTES (Jul 2026):
+//   • BTC $63,957: 6mo range $57.8k–$98k, ATH $126k (Oct 2025).
+//   • ETH: worst quarterly streak on record (3 straight red quarters).
+//   • SOL: $60.20 June low; low-$60s the market-implied magnet.
+//   • HYPE: the outlier — fresh ATH $76.67 Jun 2026 despite BTC bear.
+//   • ENA/KMNO/AVAX/ADA/UNI: at or just above 52w/all-time lows.
+//   • TIA: fully releveled (old $2.10+ ladder was stale vs ~$0.37 spot).
+//   • MSFT: worst Mag-7 of H1 2026 (-23%); COIN/CRCL/PLTR/GLXY/HOOD
+//     all researched individually — see per-row comments.
+//
+// TIERS (27):
+//   EQUITIES  (6): MSFT COIN CRCL PLTR GLXY HOOD
+//   BEDROCK   (4): BTC ETH SOL BNB
+//   CONVICTION(8): AVAX ADA NEAR TAO AAVE UNI MORPHO HYPE
+//   QUALITY   (9): ENA SUI AERO JUP PENDLE JTO RAY KAMINO TIA
+//
+// TAGS: [P]=TDR Pro position  [W]=TDR watchlist  [H]=You hold
+// Posture: DRY POWDER — accumulate into Q4 2026 BTC cycle low
+// ============================================================
+
+//@version=6
+indicator("Core Holdings v8.0", overlay=true)
+plot(na, title="Compiler anchor", display=display.none)
+
+// ─────────────────────────────────────────────
+// SECTION TOGGLES
+// ─────────────────────────────────────────────
+grp_d = "Section Toggles"
+show_eq  = input.bool(true, "Equities  (MSFT/COIN/CRCL/PLTR/GLXY/HOOD)",              group=grp_d)
+show_bd  = input.bool(true, "Bedrock  (BTC/ETH/SOL/BNB)",                             group=grp_d)
+show_hc  = input.bool(true, "High Conviction  (AVAX/ADA/NEAR/TAO/AAVE/UNI/MORPHO/HYPE)", group=grp_d)
+show_ql  = input.bool(true, "Quality  (ENA/SUI/AERO/JUP/PENDLE/JTO/RAY/KAMINO/TIA)",  group=grp_d)
+show_res = input.bool(true, "Show Reserve Column",                                    group=grp_d)
+
+grp_sort = "Sorting"
+sort_on  = input.bool(true, "Sort rows within each tier by T1 status (smallest % → largest %)", group=grp_sort)
+
+grp_flash = "In-Zone Flash"
+flash_on    = input.bool(true, "Flash cells when price is in a zone",
+ tooltip="Tick-driven: pulses on each realtime price update. On quiet symbols or closed markets the pulse slows or freezes between ticks — Pine has no wall-clock animation independent of data.", group=grp_flash)
+flash_ms    = input.int(500, "Flash period (ms)", minval=120, maxval=3000, step=50,
+ tooltip="Half-cycle in milliseconds, driven by wall clock (timenow).", group=grp_flash)
+
+grp_pos = "Table Position"
+crypto_pos_str = input.string("Top Right", "Dashboard",
+ options=["Top Right","Top Left","Bottom Right","Bottom Left","Top Center","Bottom Center","Middle Right","Middle Left"], group=grp_pos)
+
+// ─────────────────────────────────────────────
+// SYMBOL OVERRIDES — EQUITIES
+// ─────────────────────────────────────────────
+grp_eq = "Symbol Overrides — Equities"
+sym_msft   = input.string("NASDAQ:MSFT",        "MSFT", group=grp_eq)
+sym_coin   = input.string("NASDAQ:COIN",        "COIN", group=grp_eq)
+sym_crcl   = input.string("NYSE:CRCL",          "CRCL", group=grp_eq)
+sym_pltr   = input.string("NASDAQ:PLTR",        "PLTR", group=grp_eq)
+sym_glxy   = input.string("NASDAQ:GLXY",        "GLXY", group=grp_eq)
+sym_hood   = input.string("NASDAQ:HOOD",        "HOOD", group=grp_eq)
+
+// ─────────────────────────────────────────────
+// SYMBOL OVERRIDES — CRYPTO
+// ─────────────────────────────────────────────
+grp_s = "Symbol Overrides — Crypto"
+sym_btc    = input.string("BINANCE:BTCUSDT",    "BTC",    group=grp_s)
+sym_eth    = input.string("BINANCE:ETHUSDT",    "ETH",    group=grp_s)
+sym_sol    = input.string("BINANCE:SOLUSDT",    "SOL",    group=grp_s)
+sym_bnb    = input.string("BINANCE:BNBUSDT",    "BNB",    group=grp_s)
+sym_avax   = input.string("BINANCE:AVAXUSDT",   "AVAX",   group=grp_s)
+sym_ada    = input.string("BINANCE:ADAUSDT",    "ADA",    group=grp_s)
+sym_near   = input.string("BINANCE:NEARUSDT",   "NEAR",   group=grp_s)
+sym_tao    = input.string("BINANCE:TAOUSDT",    "TAO",    group=grp_s)
+sym_aave   = input.string("BINANCE:AAVEUSDT",   "AAVE",   group=grp_s)
+sym_uni    = input.string("BINANCE:UNIUSDT",    "UNI",    group=grp_s)
+sym_morpho = input.string("BINANCE:MORPHOUSDT", "MORPHO", group=grp_s)
+sym_hype   = input.string("BYBIT:HYPEUSDT",     "HYPE",   group=grp_s)
+sym_ena    = input.string("BINANCE:ENAUSDT",    "ENA",    group=grp_s)
+sym_sui    = input.string("BINANCE:SUIUSDT",    "SUI",    group=grp_s)
+sym_aero   = input.string("COINBASE:AEROUSD",   "AERO",   group=grp_s)
+sym_jup    = input.string("BINANCE:JUPUSDT",    "JUP",    group=grp_s)
+sym_pendle = input.string("BINANCE:PENDLEUSDT", "PENDLE", group=grp_s)
+sym_jto    = input.string("BINANCE:JTOUSDT",    "JTO",    group=grp_s)
+sym_ray    = input.string("BINANCE:RAYUSDT",    "RAY",    group=grp_s)
+sym_kmno   = input.string("BINANCE:KMNOUSDT",   "KAMINO (token = KMNO)", group=grp_s)
+sym_tia    = input.string("BINANCE:TIAUSDT",    "TIA",    group=grp_s)
+
+// ─────────────────────────────────────────────
+// LIVE PRICES + HIGHS  (27 tuple requests — well under the 40 cap)
+// Crypto 52W = 365 daily bars, 2Y = 730. ATH via ta.max(high).
+// Equities use 252 / 504 (≈ trading days) for true 52W / 2Y.
+// ─────────────────────────────────────────────
+
+// ── EQUITIES (252 / 504-day windows) ──
+[p_msft, h52_msft, ath_msft, low2y_msft] = request.security(sym_msft, "D", [close, ta.highest(high, 252), ta.max(high), ta.lowest(low, 504)], ignore_invalid_symbol=true)
+[p_coin, h52_coin, ath_coin, low2y_coin] = request.security(sym_coin, "D", [close, ta.highest(high, 252), ta.max(high), ta.lowest(low, 504)], ignore_invalid_symbol=true)
+[p_crcl, h52_crcl, ath_crcl, low2y_crcl] = request.security(sym_crcl, "D", [close, ta.highest(high, 252), ta.max(high), ta.lowest(low, 504)], ignore_invalid_symbol=true)
+[p_pltr, h52_pltr, ath_pltr, low2y_pltr] = request.security(sym_pltr, "D", [close, ta.highest(high, 252), ta.max(high), ta.lowest(low, 504)], ignore_invalid_symbol=true)
+[p_glxy, h52_glxy, ath_glxy, low2y_glxy] = request.security(sym_glxy, "D", [close, ta.highest(high, 252), ta.max(high), ta.lowest(low, 504)], ignore_invalid_symbol=true)
+[p_hood, h52_hood, ath_hood, low2y_hood] = request.security(sym_hood, "D", [close, ta.highest(high, 252), ta.max(high), ta.lowest(low, 504)], ignore_invalid_symbol=true)
+
+// ── CRYPTO (365 / 730-day windows) ──
+[p_btc,    h52_btc,    ath_btc,    low2y_btc]    = request.security(sym_btc,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_eth,    h52_eth,    ath_eth,    low2y_eth]    = request.security(sym_eth,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_sol,    h52_sol,    ath_sol,    low2y_sol]    = request.security(sym_sol,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_bnb,    h52_bnb,    ath_bnb,    low2y_bnb]    = request.security(sym_bnb,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_avax,   h52_avax,   ath_avax,   low2y_avax]   = request.security(sym_avax,   "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_ada,    h52_ada,    ath_ada,    low2y_ada]    = request.security(sym_ada,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_near,   h52_near,   ath_near,   low2y_near]   = request.security(sym_near,   "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_tao,    h52_tao,    ath_tao,    low2y_tao]    = request.security(sym_tao,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_aave,   h52_aave,   ath_aave,   low2y_aave]   = request.security(sym_aave,   "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_uni,    h52_uni,    ath_uni,    low2y_uni]    = request.security(sym_uni,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_morpho, h52_morpho, ath_morpho, low2y_morpho] = request.security(sym_morpho, "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_hype,   h52_hype,   ath_hype,   low2y_hype]   = request.security(sym_hype,   "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_ena,    h52_ena,    ath_ena,    low2y_ena]    = request.security(sym_ena,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_sui,    h52_sui,    ath_sui,    low2y_sui]    = request.security(sym_sui,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_aero,   h52_aero,   ath_aero,   low2y_aero]   = request.security(sym_aero,   "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_jup,    h52_jup,    ath_jup,    low2y_jup]    = request.security(sym_jup,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_pendle, h52_pendle, ath_pendle, low2y_pendle] = request.security(sym_pendle, "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_jto,    h52_jto,    ath_jto,    low2y_jto]    = request.security(sym_jto,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_ray,    h52_ray,    ath_ray,    low2y_ray]    = request.security(sym_ray,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_kmno,   h52_kmno,   ath_kmno,   low2y_kmno]   = request.security(sym_kmno,   "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+[p_tia,    h52_tia,    ath_tia,    low2y_tia]    = request.security(sym_tia,    "D", [close, ta.highest(high, 365), ta.max(high), ta.lowest(low, 730)], ignore_invalid_symbol=true)
+
+// ─────────────────────────────────────────────
+// COLORS
+// ─────────────────────────────────────────────
+C_BG        = color.new(#0d1117, 0)
+C_HDR       = color.new(#0d1117, 0)
+C_TXT       = color.new(#c9d1d9, 0)
+C_TXT_DIM   = color.new(#8b949e, 0)
+C_IN_BG     = color.new(#1a7f37, 75)
+C_IN_TXT    = color.new(#3fb950, 0)
+C_AT_BG     = color.new(#1a7f37, 60)
+C_CLOSE_BG  = color.new(#9e6a03, 75)
+C_CLOSE_TXT = color.new(#d29922, 0)
+C_ABOVE_BG  = color.new(#161b22, 0)
+C_TIER_EQ   = color.new(#2a1a3a, 0)
+C_TIER_S    = color.new(#1a3a5c, 0)
+C_TIER_A    = color.new(#1a3a1a, 0)
+C_TIER_B    = color.new(#3a2e00, 0)
+C_EQ_TXT    = color.new(#c792ea, 0)
+C_S_TXT     = color.new(#64b5f6, 0)
+C_A_TXT     = color.new(#69db7c, 0)
+C_B_TXT     = color.new(#ffd700, 0)
+C_T1        = color.new(#388bfd, 0)
+C_T2        = color.new(#a371f7, 0)
+C_T3        = color.new(#ff7b72, 0)
+C_RES       = color.new(#ff4444, 0)
+C_BORDER    = color.new(#21262d, 0)
+
+// ─────────────────────────────────────────────
+// HELPER FUNCTIONS
+// ─────────────────────────────────────────────
+f_price(float p) =>
+    na(p) ? "n/a" :
+     p >= 10000 ? "$" + str.tostring(math.round(p, 0)) :
+     p >= 1000  ? "$" + str.tostring(math.round(p, 0)) :
+     p >= 100   ? "$" + str.tostring(math.round(p, 1)) :
+     p >= 10    ? "$" + str.tostring(math.round(p, 2)) :
+     p >= 1     ? "$" + str.tostring(math.round(p, 3)) :
+     p >= 0.01  ? "$" + str.tostring(math.round(p, 4)) :
+     p >= 0.0001? "$" + str.tostring(math.round(p, 6)) :
+                  "$" + str.tostring(math.round(p, 8))
+
+f_status(float price, float lo, float hi) =>
+    string r = ""
+    if na(price)
+        r := "BAD SYMBOL"
+    else if price >= lo and price <= hi
+        float pos = (price - lo) / (hi - lo) * 100
+        r := "IN (" + str.tostring(math.round(pos, 0)) + "%)"
+    else if price > hi
+        float pct = (price - hi) / hi * 100
+        if pct < 2.0
+            r := "AT ZONE (+" + str.tostring(math.round(pct, 1)) + "%)"
+        else
+            r := "+" + str.tostring(math.round(pct, 1)) + "% above"
+    else
+        float pct = (lo - price) / price * 100
+        r := str.tostring(math.round(pct, 1)) + "% to go"
+    r
+
+// ─────────────────────────────────────────────
+// SORT KEY — bucketed T1 ranking, top -> bottom within each tier
+// ─────────────────────────────────────────────
+f_sortkey(float price, float lo, float hi) =>
+    float BELOW_BASE = -1000.0
+    float IN_BASE    = 0.0
+    float AT_BASE    = 1000.0
+    float GO_BASE    = 2000.0
+    float NA_BASE    = 9.0e8
+    float k = NA_BASE
+    if na(price)
+        k := NA_BASE
+    else if price >= lo and price <= hi
+        k := IN_BASE + (price - lo) / (hi - lo)
+    else if price < lo
+        k := BELOW_BASE - ((lo - price) / price * 100)
+    else
+        float pct = (price - hi) / hi * 100
+        if pct < 2.0
+            k := AT_BASE + pct
+        else
+            k := GO_BASE + pct
+    k
+
+f_bg(float price, float lo, float hi) =>
+    color r = C_ABOVE_BG
+    if na(price)
+        r := color.new(#3a1515, 50)
+    else if price >= lo and price <= hi
+        r := C_IN_BG
+    else if price > hi
+        float pct = (price - hi) / hi * 100
+        if pct < 2.0
+            r := C_AT_BG
+        else if pct < 8.0
+            r := C_CLOSE_BG
+        else
+            r := C_ABOVE_BG
+    r
+
+f_tc(float price, float lo, float hi) =>
+    color r = C_TXT_DIM
+    if na(price)
+        r := color.new(#ff4444, 0)
+    else if price >= lo and price <= hi
+        r := C_IN_TXT
+    else if price > hi
+        float pct = (price - hi) / hi * 100
+        if pct < 2.0
+            r := C_IN_TXT
+        else if pct < 8.0
+            r := C_CLOSE_TXT
+        else
+            r := C_TXT_DIM
+    r
+
+f_high_away(float px, float hi) =>
+    na(px) or na(hi) or hi <= 0 ? "n/a" :
+     px >= hi ? "AT HIGH" :
+     str.tostring(math.round((hi - px) / hi * 100, 1)) + "% away"
+
+f_high_tc(float px, float hi) =>
+    na(px) or na(hi) ? C_TXT_DIM :
+     px >= hi ? C_IN_TXT :
+     (hi - px) / hi * 100 <= 5 ? C_CLOSE_TXT : C_TXT_DIM
+
+f_low_away(float px, float lo) =>
+    na(px) or na(lo) or lo <= 0 ? "n/a" :
+     px <= lo ? "AT 2Y LOW" :
+     "+" + str.tostring(math.round((px - lo) / lo * 100, 1)) + "%"
+
+f_low_tc(float px, float lo) =>
+    na(px) or na(lo) ? C_TXT_DIM :
+     px <= lo ? C_IN_TXT :
+     (px - lo) / lo * 100 <= 15 ? C_CLOSE_TXT :
+     C_TXT_DIM
+
+f_res_str(float price, float thresh) =>
+    thresh <= 0 ? "—" :
+     price < thresh ? "★ BELOW" :
+     "+" + str.tostring(math.round((price - thresh) / thresh * 100, 1)) + "%"
+
+f_res_bg(float price, float thresh) =>
+    thresh <= 0 ? C_BG : price < thresh ? C_IN_BG : color.new(#21262d, 0)
+
+f_res_tc(float price, float thresh) =>
+    thresh <= 0 ? C_TXT_DIM : price < thresh ? C_IN_TXT : C_RES
+
+f_action(string nm, float price, float t1l, float t1h, float t2l, float t2h, float t3l, float t3h) =>
+    string r = ""
+    if not na(price)
+        if price >= t1l and price <= t1h
+            r := nm + "(T1) "
+        else if price > t1h and (price - t1h) / t1h * 100 < 2.0
+            r := nm + "(~T1) "
+        else if price >= t2l and price <= t2h
+            r := nm + "(T2) "
+        else if price > t2h and (price - t2h) / t2h * 100 < 2.0
+            r := nm + "(~T2) "
+        else if price >= t3l and price <= t3h
+            r := nm + "(T3) "
+        else if price > t3h and (price - t3h) / t3h * 100 < 2.0
+            r := nm + "(~T3) "
+    r
+
+// ─────────────────────────────────────────────
+// FLASH
+// ─────────────────────────────────────────────
+flashPhase = flash_on and (math.floor(timenow / flash_ms) % 2 == 0)
+
+f_inzone(float price, float lo, float hi) =>
+    not na(price) and price >= lo and price <= hi
+
+f_bg_flash(float price, float lo, float hi) =>
+    color r = f_bg(price, lo, hi)
+    if f_inzone(price, lo, hi)
+        r := flashPhase ? color.new(#1a7f37, 0) : color.new(#1a7f37, 80)
+    r
+
+f_tc_flash(float price, float lo, float hi) =>
+    color r = f_tc(price, lo, hi)
+    if f_inzone(price, lo, hi)
+        r := flashPhase ? color.new(#ffffff, 0) : color.new(#3fb950, 0)
+    r
+
+// ─────────────────────────────────────────────
+// TABLE-WRITING FUNCTIONS
+// ─────────────────────────────────────────────
+f_sect(table t, int r, int cols, string lbl, color sbg, color stc) =>
+    table.cell(t, 0, r, lbl, text_color=stc, bgcolor=sbg, text_size=size.small, text_halign=text.align_left)
+    for c = 1 to cols - 1
+        table.cell(t, c, r, "", text_color=stc, bgcolor=sbg, text_size=size.tiny)
+
+f_row(table t, int r, bool s_res, string nm, float px, float h52, float ath, float low2y, color nmtc,
+      float t1l, float t1h, float t2l, float t2h, float t3l, float t3h, float res) =>
+    table.cell(t, 0, r, nm,          text_color=nmtc,            bgcolor=C_BG, text_size=size.small, text_halign=text.align_left)
+    table.cell(t, 1, r, f_price(px), text_color=C_TXT,           bgcolor=C_BG, text_size=size.small, text_halign=text.align_right)
+    table.cell(t, 2, r, f_price(h52),        text_color=C_A_TXT,           bgcolor=C_BG, text_size=size.small, text_halign=text.align_right)
+    table.cell(t, 3, r, f_high_away(px,h52), text_color=f_high_tc(px,h52), bgcolor=C_BG, text_size=size.small)
+    table.cell(t, 4, r, f_price(ath),        text_color=C_S_TXT,           bgcolor=C_BG, text_size=size.small, text_halign=text.align_right)
+    table.cell(t, 5, r, f_high_away(px,ath), text_color=f_high_tc(px,ath), bgcolor=C_BG, text_size=size.small)
+    table.cell(t, 6, r, f_price(low2y),       text_color=f_low_tc(px,low2y), bgcolor=C_BG, text_size=size.small, text_halign=text.align_right)
+    table.cell(t, 7, r, f_low_away(px,low2y), text_color=f_low_tc(px,low2y), bgcolor=C_BG, text_size=size.small)
+    table.cell(t, 8, r, f_price(t1l) + "–" + f_price(t1h), text_color=C_T1, bgcolor=f_bg_flash(px,t1l,t1h), text_size=size.small)
+    table.cell(t, 9, r, f_status(px,t1l,t1h), text_color=f_tc_flash(px,t1l,t1h), bgcolor=f_bg_flash(px,t1l,t1h), text_size=size.small)
+    table.cell(t,10, r, f_price(t2l) + "–" + f_price(t2h), text_color=C_T2, bgcolor=f_bg_flash(px,t2l,t2h), text_size=size.small)
+    table.cell(t,11, r, f_status(px,t2l,t2h), text_color=f_tc_flash(px,t2l,t2h), bgcolor=f_bg_flash(px,t2l,t2h), text_size=size.small)
+    table.cell(t,12, r, f_price(t3l) + "–" + f_price(t3h), text_color=C_T3, bgcolor=f_bg_flash(px,t3l,t3h), text_size=size.small)
+    table.cell(t,13, r, f_status(px,t3l,t3h), text_color=f_tc_flash(px,t3l,t3h), bgcolor=f_bg_flash(px,t3l,t3h), text_size=size.small)
+    if s_res
+        table.cell(t,14, r, res > 0 ? "< " + f_price(res) : "—", text_color=C_RES,            bgcolor=f_res_bg(px,res), text_size=size.small)
+        table.cell(t,15, r, f_res_str(px,res),                    text_color=f_res_tc(px,res), bgcolor=f_res_bg(px,res), text_size=size.small)
+
+f_summary(table t, int cols, string msg, color bg, color tc) =>
+    table.merge_cells(t, 0, 0, cols - 1, 0)
+    table.cell(t, 0, 0, msg, text_color=tc, bgcolor=bg, text_size=size.small, text_halign=text.align_left)
+
+f_col_hdrs(table t, int row, bool s_res, string label) =>
+    table.cell(t, 0, row, label,       text_color=color.new(#58a6ff,0), bgcolor=C_HDR, text_size=size.small, text_halign=text.align_left)
+    table.cell(t, 1, row, "PRICE",     text_color=color.new(#58a6ff,0), bgcolor=C_HDR, text_size=size.small)
+    table.cell(t, 2, row, "52W HIGH",  text_color=C_A_TXT,              bgcolor=C_HDR, text_size=size.small)
+    table.cell(t, 3, row, "52W AWAY",  text_color=C_A_TXT,              bgcolor=C_HDR, text_size=size.small)
+    table.cell(t, 4, row, "ATH",       text_color=C_S_TXT,              bgcolor=C_HDR, text_size=size.small)
+    table.cell(t, 5, row, "ATH AWAY",  text_color=C_S_TXT,              bgcolor=C_HDR, text_size=size.small)
+    table.cell(t, 6, row, "2Y LOW",    text_color=C_T3,                 bgcolor=C_HDR, text_size=size.small)
+    table.cell(t, 7, row, "ABV 2Y LOW",text_color=C_T3,                 bgcolor=C_HDR, text_size=size.small)
+    table.cell(t, 8, row, "T1 ZONE",   text_color=C_T1,                 bgcolor=C_HDR, text_size=size.small)
+    table.cell(t, 9, row, "T1 STATUS", text_color=C_T1,                 bgcolor=C_HDR, text_size=size.small)
+    table.cell(t,10, row, "T2 ZONE",   text_color=C_T2,                 bgcolor=C_HDR, text_size=size.small)
+    table.cell(t,11, row, "T2 STATUS", text_color=C_T2,                 bgcolor=C_HDR, text_size=size.small)
+    table.cell(t,12, row, "T3 ZONE",   text_color=C_T3,                 bgcolor=C_HDR, text_size=size.small)
+    table.cell(t,13, row, "T3 STATUS", text_color=C_T3,                 bgcolor=C_HDR, text_size=size.small)
+    if s_res
+        table.cell(t,14, row, "RESERVE",    text_color=C_RES, bgcolor=C_HDR, text_size=size.small)
+        table.cell(t,15, row, "RES STATUS", text_color=C_RES, bgcolor=C_HDR, text_size=size.small)
+
+// ─────────────────────────────────────────────
+// TABLE POSITION
+// ─────────────────────────────────────────────
+f_pos(string s) =>
+    var_pos = position.top_right
+    if s == "Top Right"
+        var_pos := position.top_right
+    else if s == "Top Left"
+        var_pos := position.top_left
+    else if s == "Bottom Right"
+        var_pos := position.bottom_right
+    else if s == "Bottom Left"
+        var_pos := position.bottom_left
+    else if s == "Top Center"
+        var_pos := position.top_center
+    else if s == "Bottom Center"
+        var_pos := position.bottom_center
+    else if s == "Middle Right"
+        var_pos := position.middle_right
+    else if s == "Middle Left"
+        var_pos := position.middle_left
+    var_pos
+
+// ─────────────────────────────────────────────
+// ROW COUNTS  (EQ:6  BEDROCK:4  CONVICTION:8  QUALITY:9 = 27 total)
+// ─────────────────────────────────────────────
+r_eq = show_eq ? 6 : 0
+r_bd = show_bd ? 4 : 0
+r_hc = show_hc ? 8 : 0
+r_ql = show_ql ? 9 : 0
+
+int TOTAL_ROWS = 2 + r_eq + (show_eq?1:0) + r_bd + (show_bd?1:0) + r_hc + (show_hc?1:0) + r_ql + (show_ql?1:0)
+int COLS       = show_res ? 16 : 14
+
+crypto_position = f_pos(crypto_pos_str)
+
+// ─────────────────────────────────────────────
+// PER-TIER ROW BUFFERS
+// ─────────────────────────────────────────────
+type RowBuf
+    array<string> nm
+    array<float>  px
+    array<float>  h52
+    array<float>  ath
+    array<float>  low2y
+    array<color>  nmtc
+    array<float>  t1l
+    array<float>  t1h
+    array<float>  t2l
+    array<float>  t2h
+    array<float>  t3l
+    array<float>  t3h
+    array<float>  res
+    array<float>  key
+
+f_newbuf() =>
+    RowBuf.new(array.new<string>(), array.new<float>(), array.new<float>(), array.new<float>(),
+               array.new<float>(),
+               array.new<color>(), array.new<float>(), array.new<float>(), array.new<float>(),
+               array.new<float>(), array.new<float>(), array.new<float>(), array.new<float>(),
+               array.new<float>())
+
+f_push(RowBuf b, string nm, float px, float h52, float ath, float low2y, color nmtc,
+        float t1l, float t1h, float t2l, float t2h, float t3l, float t3h, float res) =>
+    array.push(b.nm,  nm)
+    array.push(b.px,  px)
+    array.push(b.h52, h52)
+    array.push(b.ath, ath)
+    array.push(b.low2y, low2y)
+    array.push(b.nmtc, nmtc)
+    array.push(b.t1l, t1l)
+    array.push(b.t1h, t1h)
+    array.push(b.t2l, t2l)
+    array.push(b.t2h, t2h)
+    array.push(b.t3l, t3l)
+    array.push(b.t3h, t3h)
+    array.push(b.res, res)
+    array.push(b.key, f_sortkey(px, t1l, t1h))
+
+f_emit_tier(table t, RowBuf b, int start_row, bool s_res, bool do_sort) =>
+    int n = array.size(b.nm)
+    var_order = array.new<int>()
+    array.clear(var_order)
+    for i = 0 to n - 1
+        array.push(var_order, i)
+    if do_sort
+        for a = 0 to n - 2
+            int minpos = a
+            for bx = a + 1 to n - 1
+                if array.get(b.key, array.get(var_order, bx)) < array.get(b.key, array.get(var_order, minpos))
+                    minpos := bx
+            if minpos != a
+                int tmp = array.get(var_order, a)
+                array.set(var_order, a, array.get(var_order, minpos))
+                array.set(var_order, minpos, tmp)
+    int rr = start_row
+    for j = 0 to n - 1
+        int idx = array.get(var_order, j)
+        f_row(t, rr, s_res, array.get(b.nm, idx), array.get(b.px, idx), array.get(b.h52, idx),
+              array.get(b.ath, idx), array.get(b.low2y, idx), array.get(b.nmtc, idx),
+              array.get(b.t1l, idx), array.get(b.t1h, idx),
+              array.get(b.t2l, idx), array.get(b.t2h, idx),
+              array.get(b.t3l, idx), array.get(b.t3h, idx),
+              array.get(b.res, idx))
+        rr += 1
+    rr
+
+// ─────────────────────────────────────────────
+// DIAGNOSTIC LABEL
+// ─────────────────────────────────────────────
+grp_diag  = "Diagnostics"
+show_diag = input.bool(true, "Show symbol diagnostic label", group=grp_diag)
+
+var label diag_label = na
+
+if barstate.islast and show_diag
+    string bad = ""
+    bad := na(p_msft)   ? bad + "MSFT "    : bad
+    bad := na(p_coin)   ? bad + "COIN "    : bad
+    bad := na(p_crcl)   ? bad + "CRCL "    : bad
+    bad := na(p_pltr)   ? bad + "PLTR "    : bad
+    bad := na(p_glxy)   ? bad + "GLXY "    : bad
+    bad := na(p_hood)   ? bad + "HOOD "    : bad
+    bad := na(p_btc)    ? bad + "BTC "     : bad
+    bad := na(p_eth)    ? bad + "ETH "     : bad
+    bad := na(p_sol)    ? bad + "SOL "     : bad
+    bad := na(p_bnb)    ? bad + "BNB "     : bad
+    bad := na(p_avax)   ? bad + "AVAX "    : bad
+    bad := na(p_ada)    ? bad + "ADA "     : bad
+    bad := na(p_near)   ? bad + "NEAR "    : bad
+    bad := na(p_tao)    ? bad + "TAO "     : bad
+    bad := na(p_aave)   ? bad + "AAVE "    : bad
+    bad := na(p_uni)    ? bad + "UNI "     : bad
+    bad := na(p_morpho) ? bad + "MORPHO "  : bad
+    bad := na(p_hype)   ? bad + "HYPE "    : bad
+    bad := na(p_ena)    ? bad + "ENA "     : bad
+    bad := na(p_sui)    ? bad + "SUI "     : bad
+    bad := na(p_aero)   ? bad + "AERO "    : bad
+    bad := na(p_jup)    ? bad + "JUP "     : bad
+    bad := na(p_pendle) ? bad + "PENDLE "  : bad
+    bad := na(p_jto)    ? bad + "JTO "     : bad
+    bad := na(p_ray)    ? bad + "RAY "     : bad
+    bad := na(p_kmno)   ? bad + "KAMINO "  : bad
+    bad := na(p_tia)    ? bad + "TIA "     : bad
+
+    string msg  = bad == "" ? "[OK] All 27 loaded" : "[BAD] " + bad
+    color  bgc  = bad == "" ? color.new(#1a7f37, 20) : color.new(#ff4444, 10)
+    label.delete(diag_label)
+    diag_label := label.new(bar_index, high, msg,
+     style=label.style_label_lower_left, color=bgc,
+     textcolor=color.white, size=size.small, yloc=yloc.abovebar)
+
+// ─────────────────────────────────────────────
+// TABLE BUILD
+// ─────────────────────────────────────────────
+var table crypto_tbl = table.new(crypto_position, COLS, TOTAL_ROWS,
+ border_color=C_BORDER, border_width=1, frame_color=C_BORDER, frame_width=2)
+
+if barstate.islast
+    table.clear(crypto_tbl, 0, 0, COLS - 1, TOTAL_ROWS - 1)
+
+    // ── Actionable summary (in/near zone alert) ───────────────────────────
+    // [P] TDR Position  [W] TDR Watch  [H] You Hold
+    string ca = ""
+    ca := ca + f_action("MSFT",        p_msft, 350,362,     280,300,     220,245)
+    ca := ca + f_action("COIN[P]",     p_coin, 132,143,     95,115,      65,85)
+    ca := ca + f_action("CRCL[P]",     p_crcl, 50,55,       38,45,       25,32)
+    ca := ca + f_action("PLTR[H]",     p_pltr, 109,120,     80,98,       58,72)
+    ca := ca + f_action("GLXY",        p_glxy, 18,20,       13.50,16.25, 9,12)
+    ca := ca + f_action("HOOD[W]",     p_hood, 82,91,       63,72,       42,52)
+    ca := ca + f_action("BTC[P]",      p_btc,  55000,58800, 40000,48000, 27000,35000)
+    ca := ca + f_action("ETH[P]",      p_eth,  1550,1650,   1150,1300,   800,1050)
+    ca := ca + f_action("SOL[W]",      p_sol,  60,67,       46,55,       30,40)
+    ca := ca + f_action("BNB[W]",      p_bnb,  470,520,     345,420,     240,310)
+    ca := ca + f_action("AVAX[W]",     p_avax, 5.50,5.95,   4.20,4.90,   2.80,3.60)
+    ca := ca + f_action("ADA[W]",      p_ada,  0.140,0.150, 0.105,0.125, 0.070,0.090)
+    ca := ca + f_action("NEAR[W]",     p_near, 1.55,1.72,   1.10,1.35,   0.75,0.95)
+    ca := ca + f_action("TAO[W]",      p_tao,  160,175,     118,140,     78,105)
+    ca := ca + f_action("AAVE[W]",     p_aave, 72,80,       55,65,       36,48)
+    ca := ca + f_action("UNI[W]",      p_uni,  2.90,3.20,   2.20,2.60,   1.40,1.90)
+    ca := ca + f_action("MORPHO[W]",   p_morpho,1.60,1.77,  1.15,1.40,   0.75,1.00)
+    ca := ca + f_action("HYPE[W]",     p_hype, 47,53,       36,44,       22,30)
+    ca := ca + f_action("ENA[P·H]",    p_ena,  0.070,0.076, 0.052,0.063, 0.033,0.045)
+    ca := ca + f_action("SUI[W·H]",    p_sui,  0.62,0.68,   0.46,0.56,   0.30,0.40)
+    ca := ca + f_action("AERO[W]",     p_aero, 0.38,0.42,   0.28,0.34,   0.18,0.24)
+    ca := ca + f_action("JUP[W]",      p_jup,  0.158,0.175, 0.125,0.145, 0.080,0.105)
+    ca := ca + f_action("PENDLE[W]",   p_pendle,1.30,1.42,  0.95,1.15,   0.60,0.82)
+    ca := ca + f_action("JTO[W]",      p_jto,  0.44,0.49,   0.31,0.38,   0.19,0.26)
+    ca := ca + f_action("RAY[W]",      p_ray,  0.55,0.61,   0.42,0.50,   0.26,0.36)
+    ca := ca + f_action("KAMINO[W]",   p_kmno, 0.0150,0.0165, 0.0115,0.0135, 0.0072,0.0098)
+    ca := ca + f_action("TIA[W]",      p_tia,  0.30,0.33,   0.22,0.27,   0.13,0.19)
+
+    string cmsg = ca == "" ? "★ NOTHING IN ZONE — POSTURE: DRY POWDER. Q4 2026 BTC cycle-low buy plan armed." : "★ IN/AT ZONE: " + ca
+    color  cbg  = ca == "" ? color.new(#21262d, 0) : color.new(#1a7f37, 60)
+    color  ctc  = ca == "" ? color.new(#8b949e, 0) : color.new(#3fb950, 0)
+    f_summary(crypto_tbl, COLS, cmsg, cbg, ctc)
+    f_col_hdrs(crypto_tbl, 1, show_res, "CORE (27)  [P]=TDR Pos  [W]=TDR Watch  [H]=You Hold")
+
+    int r = 2
+
+    // ── EQUITIES ────────────────────────────
+    // Levels researched Jul 2026:
+    //   MSFT  worst Mag-7 H1'26 (-23%); 6mo low 349.20 (Jun 25); T1 = June-low retest.
+    //   COIN  6mo low 139.18 (Jun 26); revenue -31% y/y, tracks BTC into Q4.
+    //   CRCL  6mo low 49.90 (Feb); trust-bank charter + record USDC volume = accumulation near $50.
+    //   PLTR  6mo low 106.37 (Jul); multiple compression despite 71% rev growth.
+    //   GLXY  6mo low 16.43 (Jun); Helios AI pivot, avg PT ~$41.7, high-beta BTC proxy.
+    //   HOOD  +65% off Mar low 63.52; Jul 29 Q2 + SpaceX IPO access + Robinhood Chain catalysts.
+    if show_eq
+        f_sect(crypto_tbl, r, COLS, "$  EQUITIES — STOCKS", C_TIER_EQ, C_EQ_TXT)
+        r += 1
+        RowBuf bEq = f_newbuf()
+        f_push(bEq, "MSFT",      p_msft, h52_msft, ath_msft, low2y_msft, C_EQ_TXT, 350,362,  280,300,      220,245, 0)
+        f_push(bEq, "COIN [P]",  p_coin, h52_coin, ath_coin, low2y_coin, C_EQ_TXT, 132,143,  95,115,       65,85,   0)
+        f_push(bEq, "CRCL [P]",  p_crcl, h52_crcl, ath_crcl, low2y_crcl, C_EQ_TXT, 50,55,    38,45,        25,32,   0)
+        f_push(bEq, "PLTR [H]",  p_pltr, h52_pltr, ath_pltr, low2y_pltr, C_EQ_TXT, 109,120,  80,98,        58,72,   0)
+        f_push(bEq, "GLXY",      p_glxy, h52_glxy, ath_glxy, low2y_glxy, C_EQ_TXT, 18,20,    13.50,16.25,  9,12,    0)
+        f_push(bEq, "HOOD [W]",  p_hood, h52_hood, ath_hood, low2y_hood, C_EQ_TXT, 82,91,    63,72,        42,52,   0)
+        r := f_emit_tier(crypto_tbl, bEq, r, show_res, sort_on)
+
+    // ── BEDROCK ─────────────────────────────
+    // BTC: 6mo range 57.8k–98k; T1 = June-low retest; T3 = Q4 capitulation (prior-cycle ATH ~31.7k anchor).
+    // ETH: Polymarket 51% odds $1,000-before-$3,000 → T2/T3 extended down; 2026 low ~1,506.
+    // SOL: Polymarket 79% odds $60-before-$140 → T1 centered on low-$60s magnet; June low 60.20.
+    // BNB: below 200D MA, testing $540; T2 anchored to Oct'25 flash-low $345.
+    if show_bd
+        f_sect(crypto_tbl, r, COLS, "★  BEDROCK — BTC/ETH/SOL/BNB", C_TIER_S, C_S_TXT)
+        r += 1
+        RowBuf bS = f_newbuf()
+        f_push(bS, "BTC [P]",    p_btc,  h52_btc,  ath_btc,  low2y_btc,  C_S_TXT, 55000,58800, 40000,48000, 27000,35000, 40000)
+        f_push(bS, "ETH [P]",    p_eth,  h52_eth,  ath_eth,  low2y_eth,  C_S_TXT, 1550,1650,   1150,1300,   800,1050,    1050)
+        f_push(bS, "SOL [W]",    p_sol,  h52_sol,  ath_sol,  low2y_sol,  C_S_TXT, 60,67,       46,55,       30,40,       0)
+        f_push(bS, "BNB [W]",    p_bnb,  h52_bnb,  ath_bnb,  low2y_bnb,  C_S_TXT, 470,520,     345,420,     240,310,     0)
+        r := f_emit_tier(crypto_tbl, bS, r, show_res, sort_on)
+
+    // ── HIGH CONVICTION ─────────────────────
+    // AVAX 6mo low 5.68 — T1 = low retest. ADA multi-yr low 0.139. NEAR doubled off 0.844 Feb low (AI narrative).
+    // TAO ~300→194, halving done. AAVE Jun low 58.50, revenue leader. UNI 52w low 2.32, Robinhood Chain bounce.
+    // MORPHO resilient (Jan low 0.96). HYPE = relative-strength leader (ATH 76.67 Jun'26) — shallower T3.
+    if show_hc
+        f_sect(crypto_tbl, r, COLS, "▲  HIGH CONVICTION", C_TIER_A, C_A_TXT)
+        r += 1
+        RowBuf bA = f_newbuf()
+        f_push(bA, "AVAX [W]",   p_avax,   h52_avax,   ath_avax,   low2y_avax,   C_A_TXT, 5.50,5.95,   4.20,4.90,   2.80,3.60,   0)
+        f_push(bA, "ADA [W]",    p_ada,    h52_ada,    ath_ada,    low2y_ada,    C_A_TXT, 0.140,0.150, 0.105,0.125, 0.070,0.090, 0)
+        f_push(bA, "NEAR [W]",   p_near,   h52_near,   ath_near,   low2y_near,   C_A_TXT, 1.55,1.72,   1.10,1.35,   0.75,0.95,   0)
+        f_push(bA, "TAO [W]",    p_tao,    h52_tao,    ath_tao,    low2y_tao,    C_A_TXT, 160,175,     118,140,     78,105,      0)
+        f_push(bA, "AAVE [W]",   p_aave,   h52_aave,   ath_aave,   low2y_aave,   C_A_TXT, 72,80,       55,65,       36,48,       0)
+        f_push(bA, "UNI [W]",    p_uni,    h52_uni,    ath_uni,    low2y_uni,    C_A_TXT, 2.90,3.20,   2.20,2.60,   1.40,1.90,   0)
+        f_push(bA, "MORPHO [W]", p_morpho, h52_morpho, ath_morpho, low2y_morpho, C_A_TXT, 1.60,1.77,   1.15,1.40,   0.75,1.00,   0)
+        f_push(bA, "HYPE [W]",   p_hype,   h52_hype,   ath_hype,   low2y_hype,   C_A_TXT, 47,53,       36,44,       22,30,       0)
+        r := f_emit_tier(crypto_tbl, bA, r, show_res, sort_on)
+
+    // ── QUALITY ─────────────────────────────
+    // ENA just above ATL 0.0702 — T1 = ATL retest. SUI unlock-heavy, T2 anchored to 0.46 flash wick.
+    // AERO holding best (Base fee revenue). JUP ATL 0.1358 Feb. PENDLE strongest fundamentals, T1 = 2026-low retest.
+    // JTO high-beta SOL proxy (Feb low 0.21). RAY buyback cushion (low 0.52). KAMINO just above 0.0134 ATL.
+    // TIA RELEVELED from stale $2.10+ ladder → current $0.37 regime; inflation overhang, new lows possible Q4.
+    if show_ql
+        f_sect(crypto_tbl, r, COLS, "◆  QUALITY PLAYS", C_TIER_B, C_B_TXT)
+        r += 1
+        RowBuf bB = f_newbuf()
+        f_push(bB, "ENA [P·H]",  p_ena,    h52_ena,    ath_ena,    low2y_ena,    C_B_TXT, 0.070,0.076,   0.052,0.063,   0.033,0.045,   0)
+        f_push(bB, "SUI [W·H]",  p_sui,    h52_sui,    ath_sui,    low2y_sui,    C_B_TXT, 0.62,0.68,     0.46,0.56,     0.30,0.40,     0)
+        f_push(bB, "AERO [W]",   p_aero,   h52_aero,   ath_aero,   low2y_aero,   C_B_TXT, 0.38,0.42,     0.28,0.34,     0.18,0.24,     0)
+        f_push(bB, "JUP [W]",    p_jup,    h52_jup,    ath_jup,    low2y_jup,    C_B_TXT, 0.158,0.175,   0.125,0.145,   0.080,0.105,   0)
+        f_push(bB, "PENDLE [W]", p_pendle, h52_pendle, ath_pendle, low2y_pendle, C_B_TXT, 1.30,1.42,     0.95,1.15,     0.60,0.82,     0)
+        f_push(bB, "JTO [W]",    p_jto,    h52_jto,    ath_jto,    low2y_jto,    C_B_TXT, 0.44,0.49,     0.31,0.38,     0.19,0.26,     0)
+        f_push(bB, "RAY [W]",    p_ray,    h52_ray,    ath_ray,    low2y_ray,    C_B_TXT, 0.55,0.61,     0.42,0.50,     0.26,0.36,     0)
+        f_push(bB, "KAMINO [W]", p_kmno,   h52_kmno,   ath_kmno,   low2y_kmno,   C_B_TXT, 0.0150,0.0165, 0.0115,0.0135, 0.0072,0.0098, 0)
+        f_push(bB, "TIA [W]",    p_tia,    h52_tia,    ath_tia,    low2y_tia,    C_B_TXT, 0.30,0.33,     0.22,0.27,     0.13,0.19,     0)
+        r := f_emit_tier(crypto_tbl, bB, r, show_res, sort_on)
