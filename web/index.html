@@ -48,15 +48,21 @@
     <div class="note" id="regime-note"></div>
   </div>
 
+  <div style="margin:0 0 .8rem; text-align:right">
+    <button id="dl-btn" style="display:none; background:#238636; color:#fff; border:0; border-radius:8px; padding:.5rem .9rem; font-size:.82rem; cursor:pointer">
+      &#8681; Download TradingView watchlist
+    </button>
+  </div>
+
   <div class="card">
     <div class="tablewrap">
       <table>
         <thead><tr>
           <th class="r">#</th><th>&Delta;</th><th>Asset</th><th class="r">Score</th>
           <th class="r">MCap</th><th class="r">Float</th><th class="r">Rev/MC</th>
-          <th class="r">30d vs BTC</th><th class="r">ATH DD</th><th>Narratives</th><th>Binance</th>
+          <th class="r">30d vs BTC</th><th class="r">ATH DD</th><th>Narratives</th><th>Binance</th><th>Feed</th>
         </tr></thead>
-        <tbody id="rows"><tr><td colspan="11" class="err">Loading scan data&hellip;</td></tr></tbody>
+        <tbody id="rows"><tr><td colspan="12" class="err">Loading scan data&hellip;</td></tr></tbody>
       </table>
     </div>
     <div class="foot">
@@ -86,7 +92,7 @@ async function loadJson(path) {
   const rowsEl = document.getElementById("rows");
   if (!data || !(data.rows || []).length) {
     document.getElementById("meta").textContent = "No scan data published yet.";
-    rowsEl.innerHTML = '<tr><td colspan="11" class="err">No scan data yet — the nightly job has not run.</td></tr>';
+    rowsEl.innerHTML = '<tr><td colspan="12" class="err">No scan data yet — the nightly job has not run.</td></tr>';
     return;
   }
 
@@ -133,8 +139,25 @@ async function loadJson(path) {
       <td class="r">${r.ath_drawdown_pct != null ? r.ath_drawdown_pct + "%" : "—"}</td>
       <td class="narr">${narr || '<span class="mut">—</span>'}</td>
       <td>${r.on_binance ? '<span class="mut">listed</span>' : '<span class="pos">NOT YET</span>'}</td>
+      <td class="mut" style="font-size:.76em" title="${r.tv_symbol ?? ""}">${r.exchange ?? "—"}</td>
     </tr>`;
   }).join("");
+
+  // TradingView watchlist download: EXCHANGE:SYMBOL feeds for the top 50
+  const btn = document.getElementById("dl-btn");
+  btn.style.display = "inline-block";
+  btn.addEventListener("click", () => {
+    const feeds = (data.rows || []).slice(0, 50)
+      .map(r => r.tv_symbol || r.symbol)
+      .filter(Boolean);
+    const blob = new Blob([feeds.join(",")], { type: "text/plain" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    const d = (data.generated_at || "").slice(0, 10).replaceAll("-", "") || "latest";
+    a.download = `screener_watchlist_${d}.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
 })();
 </script>
 </body>

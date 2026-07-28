@@ -512,6 +512,7 @@
       Score = float ratio (20) + revenue yield (20) + 30d RS vs BTC (15) + 200d RS (10) + narrative (15) + listing headroom (10) + liquidity (10).
       Kill filters: mcap $25M&ndash;$2B, float &ge; 35%, vol/mcap &ge; 0.5%, no stables/wrapped. Not financial advice &mdash; base rate for a random alt reaching a new ATH next cycle is ~10-15%.
       <a href="#" id="screener-refresh" style="color:var(--accent, #58a6ff)">Refresh scan</a>
+      &middot; <a href="#" id="screener-download" style="color:var(--accent, #58a6ff)">Download TradingView watchlist</a>
     </div>
   </div>
 </main>
@@ -884,7 +885,10 @@ function fmtMcap(v) {
   return "$" + (v / 1e6).toFixed(0) + "M";
 }
 
+let lastScreenerData = null;
+
 function renderScreener(data) {
+  lastScreenerData = data;
   const meta = document.getElementById("screener-meta");
   const rowsEl = document.getElementById("screener-rows");
 
@@ -951,6 +955,20 @@ async function loadScreener(refresh = false) {
 document.getElementById("screener-refresh").addEventListener("click", (e) => {
   e.preventDefault();
   loadScreener(true);
+});
+
+document.getElementById("screener-download").addEventListener("click", (e) => {
+  e.preventDefault();
+  const rows = (lastScreenerData?.rows || []).slice(0, 50);
+  if (!rows.length) return;
+  const feeds = rows.map(r => r.tv_symbol || r.symbol).filter(Boolean);
+  const blob = new Blob([feeds.join(",")], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  const d = (lastScreenerData.generated_at || "").slice(0, 10).replaceAll("-", "") || "latest";
+  a.download = `screener_watchlist_${d}.txt`;
+  a.click();
+  URL.revokeObjectURL(a.href);
 });
 
 async function loadAll() {
