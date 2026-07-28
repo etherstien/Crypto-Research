@@ -59,6 +59,7 @@ WINDOW_END = "2026-11-20"       # top + 410 days
 
 
 def _get(url, params=None, timeout=30, retries=2, headers=None):
+    last_err = None
     for attempt in range(retries + 1):
         try:
             r = requests.get(url, params=params, timeout=timeout,
@@ -68,8 +69,10 @@ def _get(url, params=None, timeout=30, retries=2, headers=None):
                 continue
             r.raise_for_status()
             return r
-        except Exception:
+        except Exception as e:
+            last_err = e
             if attempt == retries:
+                print(f"  fetch failed: {url.split('?')[0]} -> {last_err}", file=sys.stderr)
                 return None
             time.sleep(3)
     return None
@@ -101,28 +104,31 @@ def _ema(vals, n):
 # Fetchers
 # ---------------------------------------------------------------------------
 
-def fetch_coinmetrics():
-    """Daily [date, price, mcap, realized cap] since 2021 (covers 200WMA)."""
-    url = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics"
-    data = _get_json(url, params={
-        "assets": "btc",
-        "metrics": "PriceUSD,CapMrktCurUSD,CapRealUSD",
-        "frequency": "1d",
-        "page_size": 10000,
-        "start_time": "2021-01-01",
-    })
-    rows = []
-    while data:
-        for r in data.get("data", []):
-            try:
-                rows.append((r["time"][:10], float(r["PriceUSD"]),
-                             float(r["CapMrktCurUSD"]), float(r["CapRealUSD"])))
-            except (KeyError, TypeError, ValueError):
-                pass
-        nxt = data.get("next_page_url")
-        data = _get_json(nxt) if nxt else None
-    rows.sort(key=lambda x: x[0])
-    return rows
+def fetch_binance_klines(interval, limit):
+    """Closing prices from Binance spot (keyless; proven reachable from CI)."""
+    data = _get_json("https://api.binance.com/api/v3/klines",
+                     params={"symbol": "BTCUSDT", "interval": interval, "limit": limit})
+    if not isinstance(data, list):
+        return []
+    return [float(k[4]) for k in data if isinstance(k, list) and len(k) > 4]
+
+
+def fetch_coinmetrics_latest():
+    """Latest market cap + realized cap (light call). None if unreachable."""
+    data = _get_json("https://community-api.coinmetrics.io/v4/timeseries/asset-metrics",
+                     params={"assets": "btc",
+                             "metrics": "CapMrktCurUSD,CapRealUSD,PriceUSD",
+                             "frequency": "1d", "page_size": 10,
+                             "sort": "time", "limit_per_asset": 10})
+    rows = (data or {}).get("data", [])
+    for r in reversed(rows):
+        try:
+            return {"price": float(r["PriceUSD"]),
+                    "mcap": float(r["CapMrktCurUSD"]),
+                    "rcap": float(r["CapRealUSD"])}
+        except (KeyError, TypeError, ValueError):
+            continue
+    return None
 
 
 def fetch_blockchain_chart(chart, timespan="2years"):
@@ -199,24 +205,32 @@ def _sig(key, name, value, status, detail):
     return {"key": key, "name": name, "value": value, "status": status, "detail": detail}
 
 
+REALIZED_PRICE_FALLBACK = 52500.0  # Jul-2026 research value, used if CM is down
+
+
 def run_monitor():
-    cm = fetch_coinmetrics()
-    if len(cm) < 500:
-        return {"error": "CoinMetrics fetch failed — cannot compute valuation signals"}
+    daily = fetch_binance_klines("1d", 1000)    # covers 200DMA, 471SMA, 150EMA
+    weekly = fetch_binance_klines("1w", 300)    # covers 200-week MA
+    if len(daily) < 500 or len(weekly) < 200:
+        return {"error": "Binance price fetch failed — cannot compute signals"}
+    price = daily[-1]
 
-    prices = [r[1] for r in cm]
-    price = prices[-1]
-    mcap, rcap = cm[-1][2], cm[-1][3]
-    supply = mcap / price
-    realized_price = rcap / supply
-    mvrv = mcap / rcap
-    nupl = 1 - 1 / mvrv
+    cm = fetch_coinmetrics_latest()
+    if cm:
+        mvrv = cm["mcap"] / cm["rcap"]
+        nupl = 1 - 1 / mvrv
+        realized_price = cm["rcap"] * cm["price"] / cm["mcap"]
+        rp_live = True
+    else:
+        mvrv = nupl = None
+        realized_price = REALIZED_PRICE_FALLBACK
+        rp_live = False
 
-    wma200 = _sma(prices, 1400)          # 200 weeks ~ 1400 daily closes
-    dma200 = _sma(prices, 200)
+    wma200 = _sma(weekly, 200)
+    dma200 = _sma(daily, 200)
     mayer = price / dma200 if dma200 else None
-    ema150 = _ema(prices[-800:], 150)
-    sma471 = _sma(prices, 471)
+    ema150 = _ema(daily[-800:], 150)
+    sma471 = _sma(daily, 471)
     pi_bottom = (ema150 is not None and sma471 is not None
                  and ema150 < sma471 * 0.745)
 
@@ -242,17 +256,21 @@ def run_monitor():
 
     signals = []
     signals.append(_sig("mvrv", "MVRV < 1 (price tags realized price)",
-                        f"{mvrv:.2f}",
-                        "FIRED" if mvrv < 1 else ("CLOSE" if mvrv < 1.1 else "NOT_FIRED"),
-                        f"Realized price ${realized_price:,.0f} — fired at every 2015/2018/2022 low"))
+                        f"{mvrv:.2f}" if mvrv is not None else "n/a (feed down)",
+                        "NA" if mvrv is None else
+                        ("FIRED" if mvrv < 1 else ("CLOSE" if mvrv < 1.1 else "NOT_FIRED")),
+                        f"Realized price ${realized_price:,.0f}"
+                        + ("" if rp_live else " (static research value)")
+                        + " — fired at every 2015/2018/2022 low"))
     signals.append(_sig("wma200", "200-week MA touch",
                         f"${wma200:,.0f}" if wma200 else "n/a",
                         "FIRED" if (wma200 and price < wma200 * 1.02) else
                         ("CLOSE" if (wma200 and price < wma200 * 1.08) else "NOT_FIRED"),
                         "Every prior bear bottomed at/below this line (2022 pierced it -25%)"))
     signals.append(_sig("nupl", "NUPL < 0 (aggregate capitulation)",
-                        f"{nupl:.2f}",
-                        "FIRED" if nupl < 0 else ("CLOSE" if nupl < 0.1 else "NOT_FIRED"),
+                        f"{nupl:.2f}" if nupl is not None else "n/a (feed down)",
+                        "NA" if nupl is None else
+                        ("FIRED" if nupl < 0 else ("CLOSE" if nupl < 0.1 else "NOT_FIRED")),
                         "Went negative at all three prior lows (-0.20 to -0.25)"))
     signals.append(_sig("puell", "Puell Multiple < 0.5",
                         f"{puell:.2f}" if puell else "n/a",
@@ -331,8 +349,10 @@ def run_monitor():
             "days_to_end": (we - today).days,
         },
         "metrics": {
-            "mvrv": round(mvrv, 3), "nupl": round(nupl, 3),
+            "mvrv": round(mvrv, 3) if mvrv is not None else None,
+            "nupl": round(nupl, 3) if nupl is not None else None,
             "realized_price": round(realized_price, 0),
+            "realized_price_live": rp_live,
             "wma200": round(wma200, 0) if wma200 else None,
             "dma200": round(dma200, 0) if dma200 else None,
             "mayer": round(mayer, 3) if mayer else None,
