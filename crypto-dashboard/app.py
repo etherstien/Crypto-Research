@@ -10,6 +10,7 @@ from flask import Flask, jsonify, render_template, request
 from dotenv import load_dotenv
 
 from screener import run_scan as screener_run_scan, load_cache as screener_load_cache
+from cycle_monitor import run_monitor as cycle_run_monitor, load_cache as cycle_load_cache
 
 load_dotenv()
 
@@ -509,6 +510,21 @@ def screener_route():
     return jsonify({
         "error": "No cached scan yet. Call /api/screener?refresh=1 or run: python screener.py",
         "rows": [],
+    })
+
+
+@app.route("/api/cycle")
+def cycle_route():
+    """BTC Cycle Monitor. Serves the cached checklist; ?refresh=1 re-fetches
+    (takes ~20-40s, all keyless free APIs)."""
+    if request.args.get("refresh") == "1":
+        return jsonify(cycle_run_monitor())
+    cached = cycle_load_cache()
+    if cached:
+        return jsonify(cached)
+    return jsonify({
+        "error": "No cached cycle data yet. Call /api/cycle?refresh=1 or run: python cycle_monitor.py",
+        "signals": [],
     })
 
 
