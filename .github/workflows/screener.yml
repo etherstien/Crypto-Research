@@ -32,8 +32,14 @@ jobs:
 
       - name: Run BTC cycle monitor
         run: |
+          cp web/cycle.json web/cycle_prev.json 2>/dev/null || true
           python crypto-dashboard/cycle_monitor.py || echo "cycle monitor failed - keeping previous cycle.json"
           [ -f crypto-dashboard/cycle_cache.json ] && cp crypto-dashboard/cycle_cache.json web/cycle.json || true
+
+      - name: Send ntfy notifications
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python crypto-dashboard/notify.py || echo "notify failed (non-fatal)"
 
       - name: Commit refreshed data
         run: |
@@ -42,5 +48,6 @@ jobs:
           git add web/data.json
           [ -f web/data_prev.json ] && git add web/data_prev.json
           [ -f web/cycle.json ] && git add web/cycle.json
+          [ -f web/cycle_prev.json ] && git add web/cycle_prev.json
           git diff --cached --quiet && echo "No changes" || git commit -m "Nightly screener scan"
           git push
