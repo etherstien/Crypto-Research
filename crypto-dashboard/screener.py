@@ -240,14 +240,66 @@ def fetch_llama_fees():
     return fees_by_gecko
 
 
-def fetch_binance_listed():
-    """Set of base assets with a Binance USDT spot pair (lowercase)."""
+def fetch_exchange_listings():
+    """base symbol (lower) -> (exchange, tv_symbol).
+
+    Fetched in priority order (Binance > Coinbase > Bybit > OKX > Kraken >
+    MEXC > Gate); first hit wins, so tv_symbol points at the deepest venue.
+    All endpoints are free/keyless. Matching is BY TICKER SYMBOL, so ticker
+    collisions across venues are possible — always price-check the feed.
+    """
+    listings = {}
+
+    def add(base, exch, tv):
+        s = (base or "").lower()
+        if s and s not in listings:
+            listings[s] = (exch, tv)
+
     data = _get("https://api.binance.com/api/v3/exchangeInfo")
-    listed = set()
     for s in (data or {}).get("symbols", []):
         if s.get("quoteAsset") == "USDT" and s.get("status") == "TRADING":
-            listed.add((s.get("baseAsset") or "").lower())
-    return listed
+            add(s.get("baseAsset"), "BINANCE", f"BINANCE:{s.get('baseAsset')}USDT")
+
+    data = _get("https://api.exchange.coinbase.com/products")
+    for p in (data or []):
+        if p.get("quote_currency") == "USD" and p.get("status") == "online":
+            add(p.get("base_currency"), "COINBASE", f"COINBASE:{p.get('base_currency')}USD")
+
+    cursor = ""
+    for _ in range(5):
+        data = _get("https://api.bybit.com/v5/market/instruments-info",
+                    params={"category": "spot", "limit": 1000, "cursor": cursor})
+        result = (data or {}).get("result", {})
+        for s in result.get("list", []):
+            if s.get("quoteCoin") == "USDT" and s.get("status") == "Trading":
+                add(s.get("baseCoin"), "BYBIT", f"BYBIT:{s.get('baseCoin')}USDT")
+        cursor = result.get("nextPageCursor") or ""
+        if not cursor:
+            break
+
+    data = _get("https://www.okx.com/api/v5/public/instruments", params={"instType": "SPOT"})
+    for s in (data or {}).get("data", []):
+        if s.get("quoteCcy") == "USDT" and s.get("state") == "live":
+            add(s.get("baseCcy"), "OKX", f"OKX:{s.get('baseCcy')}USDT")
+
+    data = _get("https://api.kraken.com/0/public/AssetPairs")
+    for p in ((data or {}).get("result") or {}).values():
+        ws = p.get("wsname") or ""
+        if ws.endswith("/USD"):
+            base = ws.split("/")[0]
+            add(base, "KRAKEN", f"KRAKEN:{base}USD")
+
+    data = _get("https://api.mexc.com/api/v3/exchangeInfo")
+    for s in (data or {}).get("symbols", []):
+        if s.get("quoteAsset") == "USDT" and s.get("isSpotTradingAllowed"):
+            add(s.get("baseAsset"), "MEXC", f"MEXC:{s.get('baseAsset')}USDT")
+
+    data = _get("https://api.gateio.ws/api/v4/spot/currency_pairs")
+    for p in (data or []):
+        if p.get("quote") == "USDT" and p.get("trade_status") == "tradable":
+            add(p.get("base"), "GATEIO", f"GATEIO:{p.get('base')}USDT")
+
+    return listings
 
 
 def fetch_fear_greed():
@@ -300,7 +352,8 @@ def run_scan():
     narratives = fetch_narrative_members()
     excluded_ids = fetch_excluded_ids()
     fees = fetch_llama_fees()
-    binance_listed = fetch_binance_listed()
+    listings = fetch_exchange_listings()
+    binance_listed = {s for s, (exch, _) in listings.items() if exch == "BINANCE"}
     fng = fetch_fear_greed()
 
     btc = next((c for c in markets if c["id"] == "bitcoin"), {})
@@ -384,7 +437,9 @@ def run_scan():
     rows = []
     for i, c in enumerate(candidates):
         narr = sorted(narratives.get(c["id"], set()))
-        on_binance = (c.get("symbol") or "").lower() in binance_listed
+        sym_lower = (c.get("symbol") or "").lower()
+        on_binance = sym_lower in binance_listed
+        exch, tv_symbol = listings.get(sym_lower, (None, None))
         has_rev = rev_yields[i] is not None
 
         score = (
@@ -412,6 +467,8 @@ def run_scan():
             "ath_drawdown_pct": round(c.get("ath_change_percentage"), 1) if c.get("ath_change_percentage") is not None else None,
             "narratives": narr,
             "on_binance": on_binance,
+            "exchange": exch,
+            "tv_symbol": tv_symbol,
             "vol_mcap_pct": round(100 * vol_ratios[i], 2) if vol_ratios[i] is not None else None,
         })
 
