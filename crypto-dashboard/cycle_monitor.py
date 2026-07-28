@@ -105,12 +105,24 @@ def _ema(vals, n):
 # ---------------------------------------------------------------------------
 
 def fetch_binance_klines(interval, limit):
-    """Closing prices from Binance spot (keyless; proven reachable from CI)."""
-    data = _get_json("https://api.binance.com/api/v3/klines",
-                     params={"symbol": "BTCUSDT", "interval": interval, "limit": limit})
-    if not isinstance(data, list):
-        return []
-    return [float(k[4]) for k in data if isinstance(k, list) and len(k) > 4]
+    """BTC closing prices. Primary: Binance's public data mirror
+    (data-api.binance.vision — NOT geo-blocked like api.binance.com, which
+    returns 451 from US CI runners). Fallback: Kraken OHLC (720 candles)."""
+    for host in ("https://data-api.binance.vision", "https://api.binance.com"):
+        data = _get_json(f"{host}/api/v3/klines",
+                         params={"symbol": "BTCUSDT", "interval": interval, "limit": limit})
+        if isinstance(data, list) and data:
+            return [float(k[4]) for k in data if isinstance(k, list) and len(k) > 4]
+    kr_interval = {"1d": 1440, "1w": 10080}.get(interval)
+    if kr_interval:
+        data = _get_json("https://api.kraken.com/0/public/OHLC",
+                         params={"pair": "XBTUSD", "interval": kr_interval})
+        result = (data or {}).get("result", {})
+        for key, rows in result.items():
+            if key != "last" and isinstance(rows, list):
+                closes = [float(r[4]) for r in rows if isinstance(r, list) and len(r) > 4]
+                return closes[-limit:]
+    return []
 
 
 def fetch_coinmetrics_latest():

@@ -255,7 +255,11 @@ def fetch_exchange_listings():
         if s and s not in listings:
             listings[s] = (exch, tv)
 
-    data = _get("https://api.binance.com/api/v3/exchangeInfo")
+    # data-api.binance.vision = official public mirror; api.binance.com
+    # returns 451 (geo-block) from US CI runners, silently breaking the
+    # "listed on Binance" factor
+    data = _get("https://data-api.binance.vision/api/v3/exchangeInfo") \
+        or _get("https://api.binance.com/api/v3/exchangeInfo")
     for s in (data or {}).get("symbols", []):
         if s.get("quoteAsset") == "USDT" and s.get("status") == "TRADING":
             add(s.get("baseAsset"), "BINANCE", f"BINANCE:{s.get('baseAsset')}USDT")
