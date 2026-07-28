@@ -48,6 +48,22 @@
     <div class="note" id="regime-note"></div>
   </div>
 
+  <!-- BTC Cycle Monitor -->
+  <div class="card" id="cycle-card" style="display:none; margin-bottom:1rem">
+    <div style="padding:.8rem 1rem; border-bottom:1px solid var(--border)">
+      <strong style="font-size:1rem">BTC Cycle Monitor</strong>
+      <span class="mut" id="cycle-meta" style="margin-left:.6rem; font-size:.8rem"></span>
+      <div id="cycle-referee" style="margin-top:.5rem; font-size:.84rem; line-height:1.6"></div>
+      <div id="cycle-verdict" class="mut" style="margin-top:.4rem; font-size:.82rem"></div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Bottom signal (fired at 2015/2018/2022 lows)</th><th class="r">Value</th><th>Status</th><th>Note</th></tr></thead>
+        <tbody id="cycle-rows"></tbody>
+      </table>
+    </div>
+  </div>
+
   <div style="margin:0 0 .8rem; text-align:right">
     <button id="dl-btn" style="display:none; background:#238636; color:#fff; border:0; border-radius:8px; padding:.5rem .9rem; font-size:.82rem; cursor:pointer">
       &#8681; Download TradingView watchlist
@@ -86,6 +102,32 @@ async function loadJson(path) {
   try { const r = await fetch(path, { cache: "no-store" }); return r.ok ? await r.json() : null; }
   catch { return null; }
 }
+
+async function renderCycle() {
+  const c = await loadJson("cycle.json");
+  if (!c || c.error || !(c.signals || []).length) return;
+  document.getElementById("cycle-card").style.display = "block";
+  const ref = c.referee || {}, w = c.window || {};
+  document.getElementById("cycle-meta").textContent =
+    `BTC $${Number(c.price).toLocaleString()} · ${ref.drawdown_pct}% from top · updated ${c.generated_at ? new Date(c.generated_at).toUTCString() : "—"}`;
+  document.getElementById("cycle-referee").innerHTML =
+    `Referee lines: <span class="pos">reclaim $${Number(ref.reclaim_line).toLocaleString()}</span> ` +
+    `<span class="mut">(+${ref.reclaim_distance_pct}% away — weekly close above + ETF inflows = bottom was $${Number(ref.cycle_low).toLocaleString()})</span> · ` +
+    `<span class="neg">capitulation $${Number(ref.capitulation_line).toLocaleString()}</span> ` +
+    `<span class="mut">(-${ref.capitulation_distance_pct}% away — close below = Q4 path, $45-55k zone live; LTH floor $${Number(ref.lth_floor).toLocaleString()})</span><br>` +
+    `Template window <strong>${w.start} → ${w.end}</strong> ` +
+    (w.in_window ? '<span class="neg">[IN WINDOW NOW]</span>'
+                 : `<span class="mut">(opens in ${w.days_to_start} days)</span>`);
+  document.getElementById("cycle-verdict").textContent = c.verdict || "";
+  const chip = s => s === "FIRED" ? '<span class="pos">&#9679; FIRED</span>'
+    : s === "CLOSE" ? '<span style="color:var(--amber)">&#9679; CLOSE</span>'
+    : s === "NA" ? '<span class="mut">&#9675; n/a</span>'
+    : '<span class="mut">&#9675; not fired</span>';
+  document.getElementById("cycle-rows").innerHTML = (c.signals || []).map(s =>
+    `<tr><td>${s.name}</td><td class="r">${s.value}</td><td>${chip(s.status)}</td>` +
+    `<td class="mut" style="font-size:.76em; white-space:normal">${s.detail}</td></tr>`).join("");
+}
+renderCycle();
 
 (async () => {
   const [data, prev] = await Promise.all([loadJson("data.json"), loadJson("data_prev.json")]);

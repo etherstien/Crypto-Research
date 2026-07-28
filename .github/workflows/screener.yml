@@ -30,11 +30,17 @@ jobs:
           python crypto-dashboard/screener.py --top 10
           cp crypto-dashboard/screener_cache.json web/data.json
 
+      - name: Run BTC cycle monitor
+        run: |
+          python crypto-dashboard/cycle_monitor.py || echo "cycle monitor failed - keeping previous cycle.json"
+          [ -f crypto-dashboard/cycle_cache.json ] && cp crypto-dashboard/cycle_cache.json web/cycle.json || true
+
       - name: Commit refreshed data
         run: |
           git config user.name "screener-bot"
           git config user.email "actions@users.noreply.github.com"
           git add web/data.json
           [ -f web/data_prev.json ] && git add web/data_prev.json
+          [ -f web/cycle.json ] && git add web/cycle.json
           git diff --cached --quiet && echo "No changes" || git commit -m "Nightly screener scan"
           git push
