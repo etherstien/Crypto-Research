@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Altcoin Cycle Screener</title>
+<style>
+  :root {
+    --bg: #0d1117; --card: #161b22; --border: #21262d;
+    --text: #c9d1d9; --muted: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --amber: #d29922; --red: #f85149;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+  h1 { font-size: 1.35rem; margin-bottom: .2rem; }
+  .sub { color: var(--muted); font-size: .85rem; margin-bottom: 1.2rem; }
+  .banner { border: 1px solid var(--border); border-radius: 10px; padding: .8rem 1rem; margin-bottom: 1rem; }
+  .banner strong { letter-spacing: .06em; font-size: 1rem; }
+  .banner .stats { color: var(--muted); font-size: .83rem; margin-top: .25rem; }
+  .banner .note { color: var(--muted); font-size: .83rem; margin-top: .35rem; }
+  .regime-ACCUMULATE { background: rgba(35,134,54,.12); border-color: #238636; } .regime-ACCUMULATE strong { color: var(--green); }
+  .regime-ROTATE     { background: rgba(210,153,34,.12); border-color: #9e6a03; } .regime-ROTATE strong { color: var(--amber); }
+  .regime-DISTRIBUTE { background: rgba(248,81,73,.12);  border-color: #da3633; } .regime-DISTRIBUTE strong { color: var(--red); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; white-space: nowrap; }
+  th, td { padding: .5rem .7rem; text-align: left; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; position: sticky; top: 0; background: var(--card); }
+  td.r, th.r { text-align: right; }
+  .pos { color: var(--green); } .neg { color: var(--red); }
+  .mut { color: var(--muted); }
+  .narr { font-size: .76rem; color: var(--accent); }
+  .delta-up { color: var(--green); font-size: .76rem; } .delta-dn { color: var(--red); font-size: .76rem; }
+  .new-badge { background: rgba(88,166,255,.15); color: var(--accent); border-radius: 4px; padding: 0 .35rem; font-size: .7rem; }
+  .foot { color: var(--muted); font-size: .74rem; padding: .7rem .9rem; border-top: 1px solid var(--border); line-height: 1.6; }
+  .err { padding: 2rem; text-align: center; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Altcoin Cycle Screener</h1>
+  <div class="sub" id="meta">Loading&hellip;</div>
+
+  <div class="banner" id="banner" style="display:none">
+    <strong id="regime-label"></strong>
+    <div class="stats" id="regime-stats"></div>
+    <div class="note" id="regime-note"></div>
+  </div>
+
+  <div class="card">
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th class="r">#</th><th>&Delta;</th><th>Asset</th><th class="r">Score</th>
+          <th class="r">MCap</th><th class="r">Float</th><th class="r">Rev/MC</th>
+          <th class="r">30d vs BTC</th><th class="r">ATH DD</th><th>Narratives</th><th>Binance</th>
+        </tr></thead>
+        <tbody id="rows"><tr><td colspan="11" class="err">Loading scan data&hellip;</td></tr></tbody>
+      </table>
+    </div>
+    <div class="foot">
+      Score = float ratio (20) + revenue yield (20) + 30d RS vs BTC (15) + 200d RS (10) + 2027-narrative (15)
+      + listing headroom (10) + liquidity (10). Kill filters: mcap $25M&ndash;$2B &middot; float &ge; 35% &middot;
+      vol/mcap &ge; 0.5% &middot; no stables, wrapped assets, or tokenized stocks/gold.
+      &Delta; = rank change vs previous scan. Rebuilt nightly from CoinGecko, DeFiLlama, and exchange public data.
+      <br><strong>Not financial advice.</strong> Base rate: ~10&ndash;15% of alts make a new ATH in the next cycle —
+      this list is a research queue, not a buy list.
+    </div>
+  </div>
+</div>
+
+<script>
+function fmtMcap(v) {
+  if (v == null) return "—";
+  return v >= 1e9 ? "$" + (v / 1e9).toFixed(2) + "B" : "$" + (v / 1e6).toFixed(0) + "M";
+}
+
+async function loadJson(path) {
+  try { const r = await fetch(path, { cache: "no-store" }); return r.ok ? await r.json() : null; }
+  catch { return null; }
+}
+
+(async () => {
+  const [data, prev] = await Promise.all([loadJson("data.json"), loadJson("data_prev.json")]);
+  const rowsEl = document.getElementById("rows");
+  if (!data || !(data.rows || []).length) {
+    document.getElementById("meta").textContent = "No scan data published yet.";
+    rowsEl.innerHTML = '<tr><td colspan="11" class="err">No scan data yet — the nightly job has not run.</td></tr>';
+    return;
+  }
+
+  const reg = data.regime || {};
+  const banner = document.getElementById("banner");
+  banner.style.display = "block";
+  banner.className = "banner regime-" + (reg.label || "ACCUMULATE");
+  document.getElementById("regime-label").textContent = "REGIME: " + (reg.label || "—");
+  const fg = reg.fear_greed || {};
+  document.getElementById("regime-stats").textContent =
+    `BTC dominance ${reg.btc_dominance ?? "—"}% · altseason proxy ${reg.altseason_proxy_pct ?? "—"}% · ` +
+    `Fear & Greed ${fg.value ?? "—"} (${fg.label ?? "—"}) · BTC 30d ${reg.btc_30d_pct ?? "—"}%`;
+  document.getElementById("regime-note").textContent = reg.note || "";
+
+  const when = data.generated_at ? new Date(data.generated_at).toUTCString() : "—";
+  document.getElementById("meta").textContent =
+    `${data.passed_filters} of ${data.universe} coins pass kill filters · scanned ${when}`;
+
+  const prevRank = {};
+  (prev?.rows || []).forEach((r, i) => { prevRank[r.id] = i + 1; });
+
+  rowsEl.innerHTML = (data.rows || []).slice(0, 50).map((r, i) => {
+    const rank = i + 1;
+    let delta = '<span class="new-badge">NEW</span>';
+    if (prevRank[r.id] != null) {
+      const d = prevRank[r.id] - rank;
+      delta = d === 0 ? '<span class="mut">·</span>'
+        : d > 0 ? `<span class="delta-up">&#9650;${d}</span>`
+        : `<span class="delta-dn">&#9660;${-d}</span>`;
+    } else if (!prev) {
+      delta = '<span class="mut">·</span>';
+    }
+    const rs = r.chg_30d_vs_btc;
+    const narr = (r.narratives || []).map(n => n.split("-")[0]).join(", ");
+    return `<tr>
+      <td class="r mut">${rank}</td>
+      <td>${delta}</td>
+      <td><strong>${r.symbol}</strong> <span class="mut" style="font-size:.78em">${r.name ?? ""}</span></td>
+      <td class="r"><strong>${r.score}</strong></td>
+      <td class="r">${fmtMcap(r.mcap)}</td>
+      <td class="r">${r.float_ratio != null ? Math.round(r.float_ratio * 100) + "%" : "—"}</td>
+      <td class="r">${r.rev_yield_pct != null ? r.rev_yield_pct + "%" : "—"}</td>
+      <td class="r ${rs == null ? "" : rs >= 0 ? "pos" : "neg"}">${rs != null ? (rs >= 0 ? "+" : "") + rs + "%" : "—"}</td>
+      <td class="r">${r.ath_drawdown_pct != null ? r.ath_drawdown_pct + "%" : "—"}</td>
+      <td class="narr">${narr || '<span class="mut">—</span>'}</td>
+      <td>${r.on_binance ? '<span class="mut">listed</span>' : '<span class="pos">NOT YET</span>'}</td>
+    </tr>`;
+  }).join("");
+})();
+</script>
+</body>
+</html>

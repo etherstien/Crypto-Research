@@ -60,6 +60,12 @@ from datetime import datetime, timezone
 
 import requests
 
+try:  # pull COINGECKO_API_KEY from .env when run standalone (CLI / cron)
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+except ImportError:
+    pass
+
 CACHE_PATH = os.path.join(os.path.dirname(__file__), "screener_cache.json")
 
 CG_BASE = "https://api.coingecko.com/api/v3"
@@ -91,7 +97,12 @@ EXCLUDED_CATEGORIES = [
     "tokenized-assets",
     "tokenized-etfs",
     "tokenized-treasury-bonds",
+    "tokenized-gold",
+    "tokenized-commodities",
 ]
+
+# Commodity/asset wrappers that sometimes escape category tagging
+EXCLUDED_SYMBOLS = {"paxg", "xaut", "kau", "kag"}
 
 # 30d moves beyond this (vs BTC, in %) are treated as listing/repricing data
 # artifacts and excluded; survivors are clamped so one outlier can't own the
@@ -256,7 +267,7 @@ def _is_excluded_asset(coin):
     sym = (coin.get("symbol") or "").lower()
     name = (coin.get("name") or "").lower()
     cid = (coin.get("id") or "").lower()
-    if sym in STABLE_SYMBOLS:
+    if sym in STABLE_SYMBOLS or sym in EXCLUDED_SYMBOLS:
         return True
     if any(h in name or h in cid for h in WRAPPED_HINTS):
         return True
