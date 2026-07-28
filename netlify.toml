@@ -1,0 +1,6 @@
+# Netlify config — publishes ONLY the static screener site.
+# The Flask positions dashboard (crypto-dashboard/) is never deployed;
+# it stays local because it holds exchange API keys in .env.
+[build]
+  publish = "web"
+  command = ""

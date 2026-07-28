@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Crypto Portfolio Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0f14;
+      --surface:   #161b26;
+      --surface2:  #1e2535;
+      --border:    #252d3f;
+      --text:      #e2e8f0;
+      --muted:     #7a8aab;
+      --accent:    #3b82f6;
+      --green:     #22c55e;
+      --red:       #ef4444;
+      --gold:      #f59e0b;
+      --okx:       #0ec5ff;
+      --binance:   #f0b90b;
+      --kraken:    #8b5cf6;
+      --robinhood: #00c805;
+    }
+
+    html { font-size: 15px; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 2rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -.3px;
+    }
+
+    .logo-icon {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--accent), #8b5cf6);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem;
+    }
+
+    .nav-right { display: flex; align-items: center; gap: 1rem; }
+
+    #last-updated { font-size: .8rem; color: var(--muted); }
+
+    .refresh-btn {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: .45rem 1rem;
+      border-radius: 8px;
+      font-size: .85rem;
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+    .refresh-btn:hover { background: var(--border); border-color: var(--accent); }
+    .refresh-btn.spinning svg { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    main { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+
+    /* Summary cards */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .summary-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem 1.5rem;
+    }
+
+    .summary-card .label {
+      font-size: .75rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      margin-bottom: .4rem;
+    }
+
+    .summary-card .value {
+      font-size: 1.7rem;
+      font-weight: 700;
+      letter-spacing: -.5px;
+    }
+
+    .summary-card .sub {
+      font-size: .8rem;
+      color: var(--muted);
+      margin-top: .25rem;
+    }
+
+    /* Exchange summary row */
+    .exchange-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    @media (max-width: 900px) { .exchange-summary-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 480px) { .exchange-summary-grid { grid-template-columns: 1fr; } }
+
+    .ex-summary-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .ex-summary-icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .75rem;
+      font-weight: 700;
+      flex-shrink: 0;
+      letter-spacing: -.5px;
+    }
+
+    .ex-summary-info { flex: 1; min-width: 0; }
+    .ex-summary-name { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: .2rem; }
+    .ex-summary-value { font-size: 1.2rem; font-weight: 700; letter-spacing: -.3px; }
+    .ex-summary-pct { font-size: .75rem; color: var(--muted); margin-top: .15rem; }
+    .ex-summary-bar-wrap { background: var(--surface2); border-radius: 3px; height: 3px; margin-top: .4rem; overflow: hidden; }
+    .ex-summary-bar { height: 100%; border-radius: 3px; transition: width .6s ease; }
+
+    /* Exchange section */
+    .exchanges-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(560px, 1fr));
+      gap: 1.5rem;
+    }
+    @media (max-width: 640px) {
+      .exchanges-grid { grid-template-columns: 1fr; }
+      main { padding: 1rem; }
+    }
+
+    .exchange-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .exchange-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .exchange-name-row { display: flex; align-items: center; gap: .75rem; }
+    .exchange-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .exchange-name { font-size: 1rem; font-weight: 600; }
+
+    .exchange-status {
+      font-size: .72rem;
+      padding: .2rem .55rem;
+      border-radius: 20px;
+      font-weight: 500;
+    }
+    .status-ok           { background: rgba(34,197,94,.15);  color: var(--green); }
+    .status-error        { background: rgba(239,68,68,.12);  color: var(--red); }
+    .status-loading      { background: rgba(59,130,246,.12); color: var(--accent); }
+    .status-unconfigured { background: rgba(122,138,171,.12); color: var(--muted); }
+
+    .exchange-total { font-size: 1.05rem; font-weight: 700; }
+
+    /* Table */
+    .positions-table-wrap { overflow-x: auto; }
+
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+
+    thead th {
+      padding: .6rem 1.5rem;
+      text-align: left;
+      color: var(--muted);
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      font-weight: 500;
+      border-bottom: 1px solid var(--border);
+    }
+    thead th:last-child { text-align: right; }
+
+    tbody tr { transition: background .1s; }
+    tbody tr:hover { background: var(--surface2); }
+
+    tbody td {
+      padding: .75rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr:last-child td { border-bottom: none; }
+
+    .coin-cell { display: flex; align-items: center; gap: .65rem; }
+
+    .coin-icon {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: var(--surface2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: .7rem;
+      font-weight: 700;
+      color: var(--text);
+      flex-shrink: 0;
+      border: 1px solid var(--border);
+    }
+
+    .coin-symbol { font-weight: 600; line-height: 1.3; }
+    .coin-name   { font-size: .75rem; color: var(--muted); margin-top: 1px; }
+    .amount-col  { color: var(--muted); }
+    .value-col   { text-align: right; font-weight: 600; }
+
+    .no-positions {
+      padding: 2rem 1.5rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: .85rem;
+    }
+
+    .error-msg {
+      padding: 1.2rem 1.5rem;
+      display: flex;
+      align-items: flex-start;
+      gap: .65rem;
+      color: var(--red);
+      font-size: .85rem;
+      background: rgba(239,68,68,.06);
+    }
+    .error-msg svg { flex-shrink: 0; margin-top: 1px; }
+
+    /* Skeleton */
+    .skeleton {
+      animation: pulse 1.6s ease-in-out infinite;
+      background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+      background-size: 400% 100%;
+      border-radius: 6px;
+      height: 14px;
+    }
+    @keyframes pulse {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .skeleton-row td { padding: .75rem 1.5rem; }
+
+    /* Badges */
+    .manual-badge {
+      font-size: .65rem;
+      padding: .15rem .5rem;
+      border-radius: 20px;
+      background: rgba(245,158,11,.12);
+      color: var(--gold);
+      border: 1px solid rgba(245,158,11,.25);
+      margin-left: .4rem;
+      vertical-align: middle;
+    }
+
+    .stable-badge {
+      font-size: .65rem;
+      padding: .1rem .35rem;
+      border-radius: 4px;
+      background: rgba(122,138,171,.15);
+      color: var(--muted);
+      margin-left: .3rem;
+      vertical-align: middle;
+    }
+
+    /* TDR / Tier / Held badges */
+    .tdr-badge {
+      font-size: .62rem;
+      padding: .1rem .42rem;
+      border-radius: 4px;
+      font-weight: 700;
+      margin-left: .3rem;
+      vertical-align: middle;
+      letter-spacing: .02em;
+    }
+    .tdr-pos   { background: rgba(34,197,94,.15);  color: var(--green); border: 1px solid rgba(34,197,94,.3); }
+    .tdr-watch { background: rgba(59,130,246,.12); color: var(--accent); border: 1px solid rgba(59,130,246,.28); }
+
+    .held-badge {
+      font-size: .62rem;
+      padding: .1rem .42rem;
+      border-radius: 4px;
+      font-weight: 700;
+      margin-left: .3rem;
+      vertical-align: middle;
+      background: rgba(245,158,11,.15);
+      color: var(--gold);
+      border: 1px solid rgba(245,158,11,.3);
+    }
+
+    .tier-badge {
+      font-size: .62rem;
+      padding: .1rem .38rem;
+      border-radius: 4px;
+      font-weight: 800;
+      vertical-align: middle;
+      letter-spacing: .02em;
+      display: inline-block;
+    }
+    .tier-s { background: rgba(250,204,21,.15); color: #fbbf24; border: 1px solid rgba(250,204,21,.3); }
+    .tier-a { background: rgba(59,130,246,.12); color: var(--accent); border: 1px solid rgba(59,130,246,.25); }
+    .tier-b { background: rgba(168,85,247,.12); color: #a855f7; border: 1px solid rgba(168,85,247,.25); }
+    .tier-c { background: rgba(239,68,68,.1);  color: var(--red); border: 1px solid rgba(239,68,68,.2); }
+
+    /* PnL */
+    .pnl-pos { color: var(--green); }
+    .pnl-neg { color: var(--red); }
+
+    /* Section header */
+    .section-title-row {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: .6rem 1rem;
+      margin: 2.5rem 0 1rem;
+      padding-bottom: .6rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-title-row h2 { font-size: 1.05rem; font-weight: 700; }
+    .section-title-row .sub-label { font-size: .8rem; color: var(--muted); }
+    .section-title-row .wl-count { font-size: .8rem; color: var(--muted); margin-left: auto; }
+
+    /* Alloc bar */
+    .alloc-bar-wrap { background: var(--surface2); border-radius: 4px; height: 6px; overflow: hidden; margin-top: .5rem; }
+    .alloc-bar { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), #8b5cf6); transition: width .6s ease; }
+
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: .75rem;
+      padding: 2.5rem 1rem;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+
+    /* Legend */
+    .badge-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      margin-top: .75rem;
+      font-size: .75rem;
+      color: var(--muted);
+      align-items: center;
+    }
+    .badge-legend span { display: flex; align-items: center; gap: .3rem; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">
+    <div class="logo-icon">₿</div>
+    Crypto Portfolio
+  </div>
+  <div class="nav-right">
+    <span id="last-updated">Never refreshed</span>
+    <button class="refresh-btn" id="refresh-btn" onclick="loadAll()">
+      <svg id="refresh-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+        <path d="M21 3v5h-5"/>
+      </svg>
+      Refresh
+    </button>
+  </div>
+</nav>
+
+<main>
+  <!-- Summary strip -->
+  <div class="summary-grid">
+    <div class="summary-card">
+      <div class="label">Total Portfolio</div>
+      <div class="value" id="total-value">—</div>
+      <div class="sub" id="total-sub">Loading…</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Active Exchanges</div>
+      <div class="value" id="active-exchanges">—</div>
+      <div class="sub">of 4 configured</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Total Positions</div>
+      <div class="value" id="total-positions">—</div>
+      <div class="sub">unique assets</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Allocation</div>
+      <div class="value" id="top-asset">—</div>
+      <div class="alloc-bar-wrap"><div class="alloc-bar" id="alloc-bar" style="width:0%"></div></div>
+      <div class="sub" id="alloc-sub">largest position</div>
+    </div>
+    <div class="summary-card">
+      <div class="label">Total Return</div>
+      <div class="value" id="total-return">—</div>
+      <div class="sub" id="total-return-sub">based on cost basis</div>
+    </div>
+  </div>
+
+  <!-- Exchange breakdown -->
+  <div class="exchange-summary-grid" id="exchange-summary-grid"></div>
+
+  <!-- Exchange cards -->
+  <div class="exchanges-grid" id="exchanges-grid"></div>
+
+  <!-- TDR Pro Radar -->
+  <div class="section-title-row">
+    <h2>TDR Pro Radar</h2>
+    <span class="sub-label">Active positions &amp; watchlist · Pine Script tiers</span>
+    <span class="wl-count" id="watchlist-count">Loading…</span>
+  </div>
+
+  <div class="badge-legend">
+    <span><span class="tdr-badge tdr-pos" style="margin:0">TDR</span> TDR Pro holds</span>
+    <span><span class="tdr-badge tdr-watch" style="margin:0">WATCH</span> Watchlist only</span>
+    <span><span class="held-badge" style="margin:0">HELD</span> You hold this</span>
+    <span><span class="tier-badge tier-s" style="">S</span><span class="tier-badge tier-a">A</span><span class="tier-badge tier-b">B</span><span class="tier-badge tier-c">C</span> Pine Script tier</span>
+  </div>
+
+  <div class="exchange-card" style="margin-top:.75rem">
+    <div class="positions-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Tier</th>
+            <th>Asset</th>
+            <th>Status</th>
+            <th style="text-align:right">Price</th>
+            <th style="text-align:right">24h</th>
+          </tr>
+        </thead>
+        <tbody id="watchlist-rows">
+          <tr class="skeleton-row"><td><div class="skeleton" style="width:26px"></div></td><td><div class="skeleton" style="width:130px"></div></td><td><div class="skeleton" style="width:55px"></div></td><td><div class="skeleton" style="width:70px;margin-left:auto"></div></td><td><div class="skeleton" style="width:50px;margin-left:auto"></div></td></tr>
+          <tr class="skeleton-row"><td><div class="skeleton" style="width:26px"></div></td><td><div class="skeleton" style="width:100px"></div></td><td><div class="skeleton" style="width:70px"></div></td><td><div class="skeleton" style="width:80px;margin-left:auto"></div></td><td><div class="skeleton" style="width:50px;margin-left:auto"></div></td></tr>
+          <tr class="skeleton-row"><td><div class="skeleton" style="width:26px"></div></td><td><div class="skeleton" style="width:115px"></div></td><td><div class="skeleton" style="width:60px"></div></td><td><div class="skeleton" style="width:65px;margin-left:auto"></div></td><td><div class="skeleton" style="width:50px;margin-left:auto"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Altcoin Cycle Screener -->
+  <div class="section-title-row" style="margin-top:1.5rem">
+    <h2>Altcoin Cycle Screener</h2>
+    <span class="sub-label">Top-1000 scan &middot; 10x-candidate factors &middot; Q4 cycle-low prep</span>
+    <span class="wl-count" id="screener-meta">Loading&hellip;</span>
+  </div>
+
+  <div id="regime-banner" style="display:none;margin-top:.6rem;padding:.7rem 1rem;border-radius:10px;border:1px solid var(--border);font-size:.85rem;line-height:1.45">
+    <strong id="regime-label" style="font-size:.95rem;letter-spacing:.05em"></strong>
+    <span id="regime-stats" style="margin-left:.75rem;color:var(--muted)"></span>
+    <div id="regime-note" style="color:var(--muted);margin-top:.25rem"></div>
+  </div>
+
+  <div class="exchange-card" style="margin-top:.75rem">
+    <div class="positions-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Asset</th>
+            <th style="text-align:right">Score</th>
+            <th style="text-align:right">MCap</th>
+            <th style="text-align:right">Float</th>
+            <th style="text-align:right">Rev/MC</th>
+            <th style="text-align:right">30d vs BTC</th>
+            <th style="text-align:right">ATH DD</th>
+            <th>Narratives</th>
+            <th>Binance</th>
+          </tr>
+        </thead>
+        <tbody id="screener-rows">
+          <tr><td colspan="10" class="no-positions">Loading screener&hellip; run <code>python screener.py</code> or hit <code>/api/screener?refresh=1</code> for the first scan.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="padding:.55rem .9rem;font-size:.72rem;color:var(--muted);border-top:1px solid var(--border)">
+      Score = float ratio (20) + revenue yield (20) + 30d RS vs BTC (15) + 200d RS (10) + narrative (15) + listing headroom (10) + liquidity (10).
+      Kill filters: mcap $25M&ndash;$2B, float &ge; 35%, vol/mcap &ge; 0.5%, no stables/wrapped. Not financial advice &mdash; base rate for a random alt reaching a new ATH next cycle is ~10-15%.
+      <a href="#" id="screener-refresh" style="color:var(--accent, #58a6ff)">Refresh scan</a>
+    </div>
+  </div>
+</main>
+
+<footer>
+  Prices from exchange public APIs &middot; Data refreshes on demand &middot; Keep API keys in <code>.env</code>
+</footer>
+
+<script>
+const EXCHANGES = [
+  { id: "okx",       label: "OKX",       color: "var(--okx)" },
+  { id: "binance",   label: "Binance",   color: "var(--binance)" },
+  { id: "kraken",    label: "Kraken",    color: "var(--kraken)" },
+  { id: "robinhood", label: "Robinhood", color: "var(--robinhood)" },
+];
+
+const STABLECOINS = new Set(["USDT","USDC","BUSD","DAI","TUSD","USDP","GUSD","USD","EUR","GBP","JPY","CAD"]);
+
+// TDR Pro & Pine Script data
+const TDR_POSITIONS = new Set([
+  "BTC","ETH","LIT","PUMP","ENA","WLD","COIN","CRCL","PENGU","SPX6900","USELESS","DRV",
+]);
+const TDR_WATCHLIST = new Set([
+  "BTC","PUMP","LIT","WLD","ENA","DRV","USELESS","ETH","CRCL","PENGU","COIN",
+  "AERO","TAO","MON","TIA","SUI","AVAX","BNB","GLXY","HOOD","ZCASH","HYPE",
+  "BONK","DOUBLEZERO","RAY","JUP","JTO","KAMINO","SOL","VVV","PEPE","UNI",
+  "AAVE","PENDLE","MORPHO",
+]);
+const PINE_TIER_DATA = {
+  S: ["BTC","ETH","SOL","LINK"],
+  A: ["XRP","NEAR","TAO","ONDO","RENDER","MORPHO","UNI","PENDLE","JUP"],
+  B: ["HYPE","LIT","ENA","WLD","AERO","SUI","JTO","TON","CC","AVAX","AKT"],
+  C: ["SPX6900","PUMP","USELESS","ORBS","ZEC","FET","KAS","ZRO","DOGE","FLOKI","MON"],
+};
+const TIER_MAP = {};
+for (const [t, syms] of Object.entries(PINE_TIER_DATA)) for (const s of syms) TIER_MAP[s] = t;
+
+// User-held: hardcoded + extended from live exchange data
+const USER_HELD = new Set(["PLTR","ENA","DRV","PUMP","SUI"]);
+
+const COIN_NAMES = {
+  BTC:"Bitcoin", ETH:"Ethereum", SOL:"Solana", LINK:"Chainlink", XRP:"Ripple",
+  LIT:"Litentry", ENA:"Ethena", WLD:"Worldcoin", PENGU:"Pengu",
+  SPX6900:"SPX6900", USELESS:"Useless", DRV:"DRV", PUMP:"Pump.fun",
+  CRCL:"Circle", COIN:"Coinbase",
+  AERO:"Aerodrome", TAO:"Bittensor", MON:"Monad", TIA:"Celestia",
+  SUI:"Sui", AVAX:"Avalanche", BNB:"BNB Chain", GLXY:"Galaxy Digital",
+  HOOD:"Robinhood", ZCASH:"ZCash", HYPE:"Hyperliquid", BONK:"Bonk",
+  DOUBLEZERO:"DoubleZero", RAY:"Raydium", JUP:"Jupiter", JTO:"Jito",
+  KAMINO:"Kamino", VVV:"Venice", PEPE:"Pepe", UNI:"Uniswap",
+  AAVE:"Aave", PENDLE:"Pendle", MORPHO:"Morpho",
+  NEAR:"NEAR Protocol", ONDO:"Ondo Finance", RENDER:"Render",
+  ORBS:"Orbs", ZEC:"ZCash", FET:"Fetch.ai", KAS:"Kaspa",
+  ZRO:"LayerZero", DOGE:"Dogecoin", FLOKI:"Floki",
+  CC:"Crypto Cart", AKT:"Akash Network", TON:"Toncoin",
+  PLTR:"Palantir",
+  USDT:"Tether", USDC:"USD Coin", BUSD:"Binance USD", DAI:"Dai",
+};
+
+function fmt(n) {
+  if (n == null) return "—";
+  if (n >= 1e9) return "$" + (n/1e9).toFixed(2) + "B";
+  if (n >= 1e6) return "$" + (n/1e6).toFixed(2) + "M";
+  if (n >= 1e3) return "$" + (n/1e3).toFixed(2) + "K";
+  if (n >= 1)   return "$" + n.toFixed(2);
+  return "$" + n.toPrecision(4);
+}
+
+function fmtPrice(n) {
+  if (n == null) return "—";
+  if (n >= 1000) return "$" + n.toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2});
+  if (n >= 1)    return "$" + n.toFixed(4);
+  return "$" + n.toPrecision(4);
+}
+
+function fmtAmt(n) {
+  if (n >= 1e6) return (n/1e6).toFixed(2) + "M";
+  if (n >= 1e3) return (n/1e3).toFixed(2) + "K";
+  if (n >= 1)   return n.toFixed(4);
+  return n.toPrecision(4);
+}
+
+function coinInitial(sym) { return sym.slice(0,3); }
+
+const ICON_COLORS = {
+  BTC:"#f7931a", ETH:"#627eea", SOL:"#9945ff", XRP:"#0085c0",
+  AVAX:"#e84142", LINK:"#2a5ada", BNB:"#f0b90b",
+  USDT:"#26a17b", USDC:"#2775ca", SUI:"#4da2ff",
+  AAVE:"#b6509e", UNI:"#ff007a", PEPE:"#5ab552",
+  BONK:"#f7931a", DOGE:"#c2a633",
+};
+
+function iconStyle(sym) {
+  const c = ICON_COLORS[sym];
+  return c ? `background:${c}20; color:${c}; border-color:${c}40;` : "";
+}
+
+function tdrBadgeHtml(sym) {
+  if (TDR_POSITIONS.has(sym)) return `<span class="tdr-badge tdr-pos" title="TDR Pro Position">TDR</span>`;
+  if (TDR_WATCHLIST.has(sym)) return `<span class="tdr-badge tdr-watch" title="TDR Pro Watchlist">WATCH</span>`;
+  return "";
+}
+
+function tierBadgeHtml(sym) {
+  const t = TIER_MAP[sym];
+  return t ? `<span class="tier-badge tier-${t.toLowerCase()}" title="Pine Script Tier ${t}">${t}</span>` : `<span style="color:var(--muted)">—</span>`;
+}
+
+function buildSkeletonRows(n=3) {
+  return Array.from({length:n}, () => `
+    <tr class="skeleton-row">
+      <td><div class="skeleton" style="width:120px"></div></td>
+      <td><div class="skeleton" style="width:80px"></div></td>
+      <td><div class="skeleton" style="width:70px;margin-left:auto"></div></td>
+      <td><div class="skeleton" style="width:80px;margin-left:auto"></div></td>
+    </tr>`).join("");
+}
+
+function buildExchangeShell(ex) {
+  const el = document.createElement("div");
+  el.className = "exchange-card";
+  el.id = `card-${ex.id}`;
+  el.innerHTML = `
+    <div class="exchange-header">
+      <div class="exchange-name-row">
+        <div class="exchange-dot" style="background:${ex.color}"></div>
+        <span class="exchange-name">${ex.label}</span>
+        <span class="exchange-status status-loading" id="status-${ex.id}">Loading…</span>
+      </div>
+      <span class="exchange-total" id="total-${ex.id}">—</span>
+    </div>
+    <div class="positions-table-wrap" id="body-${ex.id}">
+      <table>
+        <thead>
+          <tr><th>Asset</th><th>Amount</th><th>Value (USD)</th><th style="text-align:right">PnL</th></tr>
+        </thead>
+        <tbody id="rows-${ex.id}">${buildSkeletonRows()}</tbody>
+      </table>
+    </div>`;
+  return el;
+}
+
+function renderExchange(data) {
+  const id = data.exchange.toLowerCase();
+  const statusEl = document.getElementById(`status-${id}`);
+  const totalEl  = document.getElementById(`total-${id}`);
+  const rowsEl   = document.getElementById(`rows-${id}`);
+
+  if (data.error) {
+    const isUnconfigured = data.error.toLowerCase().includes("not configured");
+    statusEl.textContent = isUnconfigured ? "Not configured" : "Error";
+    statusEl.className = `exchange-status ${isUnconfigured ? "status-unconfigured" : "status-error"}`;
+    totalEl.textContent = "—";
+    rowsEl.closest(".positions-table-wrap").innerHTML = `
+      <div class="${isUnconfigured ? "no-positions" : "error-msg"}">
+        ${isUnconfigured
+          ? `Add your <strong>${data.exchange}</strong> API keys to <code>.env</code> and restart.`
+          : `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> ${data.error}`}
+      </div>`;
+    return 0;
+  }
+
+  const positions = (data.positions || []).filter(p => p.amount > 0);
+  if (!positions.length) {
+    statusEl.textContent = "No positions";
+    statusEl.className = "exchange-status status-ok";
+    totalEl.textContent = "$0.00";
+    rowsEl.closest(".positions-table-wrap").innerHTML =
+      `<div class="no-positions">No open positions found.</div>`;
+    return 0;
+  }
+
+  positions.sort((a,b) => {
+    if (a.usd_value === null) return 1;
+    if (b.usd_value === null) return -1;
+    return b.usd_value - a.usd_value;
+  });
+
+  const total = positions.reduce((s, p) => s + (p.usd_value || 0), 0);
+  const isManual = data.source === "manual";
+
+  statusEl.textContent = `${positions.length} position${positions.length>1?"s":""}`;
+  statusEl.className = "exchange-status status-ok";
+  totalEl.textContent = fmt(total);
+
+  if (isManual) {
+    const nameRow = document.getElementById(`card-${id}`).querySelector(".exchange-name-row");
+    if (!nameRow.querySelector(".manual-badge")) {
+      const badge = document.createElement("span");
+      badge.className = "manual-badge";
+      badge.title = "Manually entered data — add API key for live data";
+      badge.textContent = "manual";
+      nameRow.appendChild(badge);
+    }
+  }
+
+  rowsEl.innerHTML = positions.map(p => {
+    const sym      = p.symbol;
+    const isStable = STABLECOINS.has(sym);
+    const name     = COIN_NAMES[sym] || "";
+    const isEquity = p.asset_type === "equity";
+    const isCash   = p.asset_type === "cash";
+
+    let pnlCell;
+    if (p.pnl !== null && p.pnl !== undefined) {
+      const cls  = p.pnl >= 0 ? "pnl-pos" : "pnl-neg";
+      const sign = p.pnl >= 0 ? "+" : "";
+      const pct  = p.pnl_pct != null
+        ? ` <span style="font-size:.78rem;opacity:.8">(${sign}${p.pnl_pct.toFixed(2)}%)</span>`
+        : "";
+      pnlCell = `<td class="value-col ${cls}">${sign}${fmt(p.pnl)}${pct}</td>`;
+    } else {
+      pnlCell = `<td class="value-col" style="color:var(--muted)">—</td>`;
+    }
+
+    const stableBadge  = isStable ? `<span class="stable-badge">stable</span>` : "";
+    const stockBadge   = isEquity ? `<span class="stable-badge" style="background:rgba(59,130,246,.15);color:var(--accent)">stock</span>` : "";
+    const cashBadge    = isCash   ? `<span class="stable-badge">cash</span>` : "";
+    const tdrBadge     = (!isStable && !isCash) ? tdrBadgeHtml(sym) : "";
+
+    return `
+      <tr>
+        <td>
+          <div class="coin-cell">
+            <div class="coin-icon" style="${iconStyle(sym)}">${coinInitial(sym)}</div>
+            <div>
+              <div class="coin-symbol">${sym}${stableBadge}${stockBadge}${cashBadge}${tdrBadge}</div>
+              ${name ? `<div class="coin-name">${name}</div>` : ""}
+            </div>
+          </div>
+        </td>
+        <td class="amount-col">${fmtAmt(p.amount)}</td>
+        <td class="value-col">${p.usd_value !== null ? fmt(p.usd_value) : "—"}</td>
+        ${pnlCell}
+      </tr>`;
+  }).join("");
+
+  return total;
+}
+
+function updateSummary(totals, exchangeData) {
+  const grand = totals.reduce((s,t) => s+t, 0);
+  const activeCount = exchangeData.filter(d => !d.error).length;
+  const allPositions = exchangeData.flatMap(d => d.positions || []);
+  const uniqueAssets = new Set(allPositions.map(p => p.symbol)).size;
+
+  document.getElementById("total-value").textContent = fmt(grand);
+  document.getElementById("total-sub").textContent = "across all exchanges";
+  document.getElementById("active-exchanges").textContent = activeCount;
+  document.getElementById("total-positions").textContent = uniqueAssets || "—";
+
+  const byAsset = {};
+  for (const p of allPositions) {
+    if (p.usd_value) byAsset[p.symbol] = (byAsset[p.symbol] || 0) + p.usd_value;
+  }
+  const top = Object.entries(byAsset).sort((a,b)=>b[1]-a[1])[0];
+  if (top && grand > 0) {
+    const pct = Math.round(top[1]/grand*100);
+    document.getElementById("top-asset").textContent = top[0];
+    document.getElementById("alloc-sub").textContent = `${pct}% of portfolio`;
+    document.getElementById("alloc-bar").style.width = pct + "%";
+  }
+
+  const withCost      = allPositions.filter(p => p.pnl != null);
+  const totalPnl      = withCost.reduce((s, p) => s + p.pnl, 0);
+  const totalCostBasis = withCost.reduce((s, p) => s + (p.amount || 0) * (p.cost_price || 0), 0);
+
+  const retEl    = document.getElementById("total-return");
+  const retSubEl = document.getElementById("total-return-sub");
+
+  if (withCost.length === 0) {
+    retEl.textContent    = "—";
+    retSubEl.textContent = "add cost basis to cost_basis.json";
+    retEl.style.color    = "";
+  } else {
+    const pct  = totalCostBasis > 0 ? (totalPnl / totalCostBasis * 100) : 0;
+    const sign = totalPnl >= 0 ? "+" : "";
+    retEl.textContent    = `${sign}${fmt(totalPnl)} (${sign}${pct.toFixed(2)}%)`;
+    retEl.style.color    = totalPnl >= 0 ? "var(--green)" : "var(--red)";
+    retSubEl.textContent = `across ${withCost.length} tracked position${withCost.length > 1 ? "s" : ""}`;
+  }
+}
+
+const _totals = {};
+const _exchangeData = {};
+
+async function loadExchange(exId) {
+  try {
+    const resp = await fetch(`/api/positions/${exId}`);
+    const data = await resp.json();
+    for (const p of (data.positions || [])) {
+      if (p.symbol && p.amount > 0) USER_HELD.add(p.symbol);
+    }
+    const total = renderExchange(data);
+    _totals[exId] = total || 0;
+    _exchangeData[exId] = data;
+    updateSummary(Object.values(_totals), Object.values(_exchangeData));
+    updateExchangeSummaryCards(_totals, _exchangeData);
+  } catch(err) {
+    console.error(`Failed to fetch ${exId}:`, err);
+  }
+}
+
+function renderWatchlist(data) {
+  const rows = data.watchlist || [];
+  document.getElementById("watchlist-count").textContent = `${rows.length} tickers`;
+
+  const rowsEl = document.getElementById("watchlist-rows");
+  if (!rows.length) {
+    rowsEl.innerHTML = `<tr><td colspan="5" class="no-positions">No watchlist data available.</td></tr>`;
+    return;
+  }
+
+  rowsEl.innerHTML = rows.map(r => {
+    const name     = COIN_NAMES[r.symbol] || "";
+    const isHeld   = r.user_held || USER_HELD.has(r.symbol);
+    const heldHtml = isHeld ? `<span class="held-badge" title="You hold this asset">HELD</span>` : "";
+
+    const statusHtml = r.tdr_status === "POS"
+      ? `<span class="tdr-badge tdr-pos">TDR</span>`
+      : `<span class="tdr-badge tdr-watch">WATCH</span>`;
+
+    let changeHtml = `<span style="color:var(--muted)">—</span>`;
+    if (r.change_pct != null) {
+      const cls  = r.change_pct >= 0 ? "pnl-pos" : "pnl-neg";
+      const sign = r.change_pct >= 0 ? "+" : "";
+      changeHtml = `<span class="${cls}">${sign}${r.change_pct.toFixed(2)}%</span>`;
+    }
+
+    return `
+      <tr>
+        <td>${tierBadgeHtml(r.symbol)}</td>
+        <td>
+          <div class="coin-cell">
+            <div class="coin-icon" style="${iconStyle(r.symbol)}">${coinInitial(r.symbol)}</div>
+            <div>
+              <div class="coin-symbol">${r.symbol}</div>
+              ${name ? `<div class="coin-name">${name}</div>` : ""}
+            </div>
+          </div>
+        </td>
+        <td>${statusHtml}${heldHtml}</td>
+        <td class="value-col">${r.price != null ? fmtPrice(r.price) : '<span style="color:var(--muted)">—</span>'}</td>
+        <td class="value-col">${changeHtml}</td>
+      </tr>`;
+  }).join("");
+}
+
+async function loadWatchlist() {
+  try {
+    const resp = await fetch("/api/watchlist");
+    const data = await resp.json();
+    renderWatchlist(data);
+  } catch(err) {
+    document.getElementById("watchlist-rows").innerHTML =
+      `<tr><td colspan="5" class="no-positions">Failed to load watchlist.</td></tr>`;
+    document.getElementById("watchlist-count").textContent = "Error";
+  }
+}
+
+const REGIME_STYLES = {
+  ACCUMULATE: { bg: "rgba(35,134,54,.12)",  border: "#238636", color: "#3fb950" },
+  ROTATE:     { bg: "rgba(210,153,34,.12)", border: "#9e6a03", color: "#d29922" },
+  DISTRIBUTE: { bg: "rgba(248,81,73,.12)",  border: "#da3633", color: "#f85149" },
+};
+
+function fmtMcap(v) {
+  if (v == null) return "—";
+  if (v >= 1e9) return "$" + (v / 1e9).toFixed(2) + "B";
+  return "$" + (v / 1e6).toFixed(0) + "M";
+}
+
+function renderScreener(data) {
+  const meta = document.getElementById("screener-meta");
+  const rowsEl = document.getElementById("screener-rows");
+
+  if (data.error && !(data.rows || []).length) {
+    meta.textContent = "No scan yet";
+    rowsEl.innerHTML = `<tr><td colspan="10" class="no-positions">${data.error}</td></tr>`;
+    return;
+  }
+
+  const reg = data.regime || {};
+  const banner = document.getElementById("regime-banner");
+  const style = REGIME_STYLES[reg.label] || REGIME_STYLES.ACCUMULATE;
+  banner.style.display = "block";
+  banner.style.background = style.bg;
+  banner.style.borderColor = style.border;
+  const labelEl = document.getElementById("regime-label");
+  labelEl.textContent = "REGIME: " + (reg.label || "—");
+  labelEl.style.color = style.color;
+  const fg = reg.fear_greed || {};
+  document.getElementById("regime-stats").textContent =
+    `BTC dominance ${reg.btc_dominance ?? "—"}% · altseason proxy ${reg.altseason_proxy_pct ?? "—"}% · Fear&Greed ${fg.value ?? "—"} (${fg.label ?? "—"}) · BTC 30d ${reg.btc_30d_pct ?? "—"}%`;
+  document.getElementById("regime-note").textContent = reg.note || "";
+
+  const when = data.generated_at ? new Date(data.generated_at).toLocaleString() : "—";
+  meta.textContent = `${data.passed_filters ?? 0} of ${data.universe ?? 0} pass · ${when}`;
+
+  const rows = (data.rows || []).slice(0, 30);
+  if (!rows.length) {
+    rowsEl.innerHTML = `<tr><td colspan="10" class="no-positions">No coins passed the kill filters.</td></tr>`;
+    return;
+  }
+  rowsEl.innerHTML = rows.map((r, i) => {
+    const rs30 = r.chg_30d_vs_btc;
+    const rsCls = rs30 == null ? "" : (rs30 >= 0 ? "pos" : "neg");
+    const narr = (r.narratives || []).map(n => n.split("-")[0]).join(", ") || "—";
+    return `<tr>
+      <td style="color:var(--muted)">${i + 1}</td>
+      <td><strong>${r.symbol}</strong> <span style="color:var(--muted);font-size:.78em">${r.name ?? ""}</span></td>
+      <td style="text-align:right"><strong>${r.score}</strong></td>
+      <td style="text-align:right">${fmtMcap(r.mcap)}</td>
+      <td style="text-align:right">${r.float_ratio != null ? Math.round(r.float_ratio * 100) + "%" : "—"}</td>
+      <td style="text-align:right">${r.rev_yield_pct != null ? r.rev_yield_pct + "%" : "—"}</td>
+      <td style="text-align:right" class="${rsCls}">${rs30 != null ? (rs30 >= 0 ? "+" : "") + rs30 + "%" : "—"}</td>
+      <td style="text-align:right">${r.ath_drawdown_pct != null ? r.ath_drawdown_pct + "%" : "—"}</td>
+      <td style="font-size:.78em">${narr}</td>
+      <td>${r.on_binance ? "listed" : '<span class="pos">NOT YET</span>'}</td>
+    </tr>`;
+  }).join("");
+}
+
+async function loadScreener(refresh = false) {
+  const meta = document.getElementById("screener-meta");
+  try {
+    if (refresh) meta.textContent = "Scanning… (60-90s)";
+    const resp = await fetch("/api/screener" + (refresh ? "?refresh=1" : ""));
+    renderScreener(await resp.json());
+  } catch (e) {
+    meta.textContent = "Error";
+    document.getElementById("screener-rows").innerHTML =
+      `<tr><td colspan="10" class="no-positions">Failed to load screener.</td></tr>`;
+  }
+}
+
+document.getElementById("screener-refresh").addEventListener("click", (e) => {
+  e.preventDefault();
+  loadScreener(true);
+});
+
+async function loadAll() {
+  const btn = document.getElementById("refresh-btn");
+  btn.disabled = true;
+  btn.classList.add("spinning");
+
+  EXCHANGES.forEach(ex => {
+    const rowsEl = document.getElementById(`rows-${ex.id}`);
+    if (rowsEl) rowsEl.innerHTML = buildSkeletonRows();
+    const statusEl = document.getElementById(`status-${ex.id}`);
+    if (statusEl) { statusEl.textContent = "Loading…"; statusEl.className = "exchange-status status-loading"; }
+    const totalEl = document.getElementById(`total-${ex.id}`);
+    if (totalEl) totalEl.textContent = "—";
+    document.getElementById(`card-${ex.id}`)?.querySelectorAll(".manual-badge").forEach(b => b.remove());
+  });
+
+  document.getElementById("watchlist-count").textContent = "Loading…";
+  document.getElementById("watchlist-rows").innerHTML = `
+    <tr class="skeleton-row"><td><div class="skeleton" style="width:26px"></div></td><td><div class="skeleton" style="width:130px"></div></td><td><div class="skeleton" style="width:55px"></div></td><td><div class="skeleton" style="width:70px;margin-left:auto"></div></td><td><div class="skeleton" style="width:50px;margin-left:auto"></div></td></tr>
+    <tr class="skeleton-row"><td><div class="skeleton" style="width:26px"></div></td><td><div class="skeleton" style="width:100px"></div></td><td><div class="skeleton" style="width:70px"></div></td><td><div class="skeleton" style="width:80px;margin-left:auto"></div></td><td><div class="skeleton" style="width:50px;margin-left:auto"></div></td></tr>`;
+
+  await Promise.allSettled([
+    ...EXCHANGES.map(ex => loadExchange(ex.id)),
+    loadWatchlist(),
+    loadScreener(),
+  ]);
+
+  document.getElementById("last-updated").textContent =
+    "Updated " + new Date().toLocaleTimeString();
+  btn.disabled = false;
+  btn.classList.remove("spinning");
+}
+
+function buildExchangeSummaryCards() {
+  const grid = document.getElementById("exchange-summary-grid");
+  EXCHANGES.forEach(ex => {
+    const card = document.createElement("div");
+    card.className = "ex-summary-card";
+    card.id = `ex-sum-${ex.id}`;
+    card.innerHTML = `
+      <div class="ex-summary-icon" style="background:${ex.color}18; color:${ex.color}; border:1px solid ${ex.color}30">
+        ${ex.label.slice(0,3).toUpperCase()}
+      </div>
+      <div class="ex-summary-info">
+        <div class="ex-summary-name">${ex.label}</div>
+        <div class="ex-summary-value" id="ex-sum-val-${ex.id}">—</div>
+        <div class="ex-summary-pct" id="ex-sum-pct-${ex.id}">Loading…</div>
+        <div class="ex-summary-bar-wrap">
+          <div class="ex-summary-bar" id="ex-sum-bar-${ex.id}" style="background:${ex.color}; width:0%"></div>
+        </div>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+function updateExchangeSummaryCards(totals, exchangeData) {
+  const grand = Object.values(totals).reduce((s, t) => s + t, 0);
+  EXCHANGES.forEach(ex => {
+    const total = totals[ex.id] || 0;
+    const data  = exchangeData[ex.id];
+    const pct   = grand > 0 ? (total / grand * 100) : 0;
+    document.getElementById(`ex-sum-val-${ex.id}`).textContent =
+      total > 0 ? fmt(total) : (data?.error ? "Error" : "—");
+    const pctEl = document.getElementById(`ex-sum-pct-${ex.id}`);
+    pctEl.textContent = total > 0 ? `${pct.toFixed(1)}% of portfolio`
+                      : (data?.error ? data.error.slice(0,40) : "No positions");
+    pctEl.style.color = data?.error ? "var(--red)" : "";
+    document.getElementById(`ex-sum-bar-${ex.id}`).style.width = pct.toFixed(1) + "%";
+  });
+}
+
+(function init() {
+  buildExchangeSummaryCards();
+  const grid = document.getElementById("exchanges-grid");
+  EXCHANGES.forEach(ex => grid.appendChild(buildExchangeShell(ex)));
+  loadAll();
+})();
+</script>
+</body>
+</html>

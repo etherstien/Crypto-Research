@@ -1,0 +1,40 @@
+{
+  "OKX": [
+    {
+      "symbol": "ENA",
+      "amount": 37743.09254,
+      "cost_price": 0.08812,
+      "last_price": 0.08606,
+      "usd_value": 3250.22,
+      "pnl": -77.75,
+      "pnl_pct": -2.33
+    },
+    {
+      "symbol": "CC",
+      "amount": 7993.05186,
+      "cost_price": 0.1498,
+      "last_price": 0.1544,
+      "usd_value": 1233.08,
+      "pnl": 36.12,
+      "pnl_pct": 3.01
+    },
+    {
+      "symbol": "BTC",
+      "amount": 0.00014144,
+      "cost_price": null,
+      "last_price": 72731.9,
+      "usd_value": 10.28,
+      "pnl": null,
+      "pnl_pct": null
+    },
+    {
+      "symbol": "USD",
+      "amount": 1530.37848919,
+      "cost_price": 1.0,
+      "last_price": 1.0,
+      "usd_value": 1530.37,
+      "pnl": null,
+      "pnl_pct": null
+    }
+  ]
+}

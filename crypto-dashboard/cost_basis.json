@@ -1,0 +1,24 @@
+{
+  "_note": "Add your average purchase price for any holding here. Exchange and symbol must match exactly.",
+  "OKX": {
+    "ENA":  0.08812,
+    "CC":   0.1498,
+    "BTC":  null,
+    "USD":  1.0
+  },
+  "Binance": {
+    "ENA":    0.09726,
+    "PUMP":   0.0017574,
+    "RENDER": 1.773,
+    "SUI":    0.9082,
+    "USDT":   1.0,
+    "USD":    1.0
+  },
+  "Kraken": {
+    "PUMP": 0.00174,
+    "PENGU": 0.007503
+  },
+  "Robinhood": {
+    "ETH": 2000.0
+  }
+}
