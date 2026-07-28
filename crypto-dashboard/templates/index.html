@@ -472,6 +472,48 @@
       </table>
     </div>
   </div>
+
+  <!-- Altcoin Cycle Screener -->
+  <div class="section-title-row" style="margin-top:1.5rem">
+    <h2>Altcoin Cycle Screener</h2>
+    <span class="sub-label">Top-1000 scan &middot; 10x-candidate factors &middot; Q4 cycle-low prep</span>
+    <span class="wl-count" id="screener-meta">Loading&hellip;</span>
+  </div>
+
+  <div id="regime-banner" style="display:none;margin-top:.6rem;padding:.7rem 1rem;border-radius:10px;border:1px solid var(--border);font-size:.85rem;line-height:1.45">
+    <strong id="regime-label" style="font-size:.95rem;letter-spacing:.05em"></strong>
+    <span id="regime-stats" style="margin-left:.75rem;color:var(--muted)"></span>
+    <div id="regime-note" style="color:var(--muted);margin-top:.25rem"></div>
+  </div>
+
+  <div class="exchange-card" style="margin-top:.75rem">
+    <div class="positions-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Asset</th>
+            <th style="text-align:right">Score</th>
+            <th style="text-align:right">MCap</th>
+            <th style="text-align:right">Float</th>
+            <th style="text-align:right">Rev/MC</th>
+            <th style="text-align:right">30d vs BTC</th>
+            <th style="text-align:right">ATH DD</th>
+            <th>Narratives</th>
+            <th>Binance</th>
+          </tr>
+        </thead>
+        <tbody id="screener-rows">
+          <tr><td colspan="10" class="no-positions">Loading screener&hellip; run <code>python screener.py</code> or hit <code>/api/screener?refresh=1</code> for the first scan.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="padding:.55rem .9rem;font-size:.72rem;color:var(--muted);border-top:1px solid var(--border)">
+      Score = float ratio (20) + revenue yield (20) + 30d RS vs BTC (15) + 200d RS (10) + narrative (15) + listing headroom (10) + liquidity (10).
+      Kill filters: mcap $25M&ndash;$2B, float &ge; 35%, vol/mcap &ge; 0.5%, no stables/wrapped. Not financial advice &mdash; base rate for a random alt reaching a new ATH next cycle is ~10-15%.
+      <a href="#" id="screener-refresh" style="color:var(--accent, #58a6ff)">Refresh scan</a>
+    </div>
+  </div>
 </main>
 
 <footer>
@@ -830,6 +872,87 @@ async function loadWatchlist() {
   }
 }
 
+const REGIME_STYLES = {
+  ACCUMULATE: { bg: "rgba(35,134,54,.12)",  border: "#238636", color: "#3fb950" },
+  ROTATE:     { bg: "rgba(210,153,34,.12)", border: "#9e6a03", color: "#d29922" },
+  DISTRIBUTE: { bg: "rgba(248,81,73,.12)",  border: "#da3633", color: "#f85149" },
+};
+
+function fmtMcap(v) {
+  if (v == null) return "—";
+  if (v >= 1e9) return "$" + (v / 1e9).toFixed(2) + "B";
+  return "$" + (v / 1e6).toFixed(0) + "M";
+}
+
+function renderScreener(data) {
+  const meta = document.getElementById("screener-meta");
+  const rowsEl = document.getElementById("screener-rows");
+
+  if (data.error && !(data.rows || []).length) {
+    meta.textContent = "No scan yet";
+    rowsEl.innerHTML = `<tr><td colspan="10" class="no-positions">${data.error}</td></tr>`;
+    return;
+  }
+
+  const reg = data.regime || {};
+  const banner = document.getElementById("regime-banner");
+  const style = REGIME_STYLES[reg.label] || REGIME_STYLES.ACCUMULATE;
+  banner.style.display = "block";
+  banner.style.background = style.bg;
+  banner.style.borderColor = style.border;
+  const labelEl = document.getElementById("regime-label");
+  labelEl.textContent = "REGIME: " + (reg.label || "—");
+  labelEl.style.color = style.color;
+  const fg = reg.fear_greed || {};
+  document.getElementById("regime-stats").textContent =
+    `BTC dominance ${reg.btc_dominance ?? "—"}% · altseason proxy ${reg.altseason_proxy_pct ?? "—"}% · Fear&Greed ${fg.value ?? "—"} (${fg.label ?? "—"}) · BTC 30d ${reg.btc_30d_pct ?? "—"}%`;
+  document.getElementById("regime-note").textContent = reg.note || "";
+
+  const when = data.generated_at ? new Date(data.generated_at).toLocaleString() : "—";
+  meta.textContent = `${data.passed_filters ?? 0} of ${data.universe ?? 0} pass · ${when}`;
+
+  const rows = (data.rows || []).slice(0, 30);
+  if (!rows.length) {
+    rowsEl.innerHTML = `<tr><td colspan="10" class="no-positions">No coins passed the kill filters.</td></tr>`;
+    return;
+  }
+  rowsEl.innerHTML = rows.map((r, i) => {
+    const rs30 = r.chg_30d_vs_btc;
+    const rsCls = rs30 == null ? "" : (rs30 >= 0 ? "pos" : "neg");
+    const narr = (r.narratives || []).map(n => n.split("-")[0]).join(", ") || "—";
+    return `<tr>
+      <td style="color:var(--muted)">${i + 1}</td>
+      <td><strong>${r.symbol}</strong> <span style="color:var(--muted);font-size:.78em">${r.name ?? ""}</span></td>
+      <td style="text-align:right"><strong>${r.score}</strong></td>
+      <td style="text-align:right">${fmtMcap(r.mcap)}</td>
+      <td style="text-align:right">${r.float_ratio != null ? Math.round(r.float_ratio * 100) + "%" : "—"}</td>
+      <td style="text-align:right">${r.rev_yield_pct != null ? r.rev_yield_pct + "%" : "—"}</td>
+      <td style="text-align:right" class="${rsCls}">${rs30 != null ? (rs30 >= 0 ? "+" : "") + rs30 + "%" : "—"}</td>
+      <td style="text-align:right">${r.ath_drawdown_pct != null ? r.ath_drawdown_pct + "%" : "—"}</td>
+      <td style="font-size:.78em">${narr}</td>
+      <td>${r.on_binance ? "listed" : '<span class="pos">NOT YET</span>'}</td>
+    </tr>`;
+  }).join("");
+}
+
+async function loadScreener(refresh = false) {
+  const meta = document.getElementById("screener-meta");
+  try {
+    if (refresh) meta.textContent = "Scanning… (60-90s)";
+    const resp = await fetch("/api/screener" + (refresh ? "?refresh=1" : ""));
+    renderScreener(await resp.json());
+  } catch (e) {
+    meta.textContent = "Error";
+    document.getElementById("screener-rows").innerHTML =
+      `<tr><td colspan="10" class="no-positions">Failed to load screener.</td></tr>`;
+  }
+}
+
+document.getElementById("screener-refresh").addEventListener("click", (e) => {
+  e.preventDefault();
+  loadScreener(true);
+});
+
 async function loadAll() {
   const btn = document.getElementById("refresh-btn");
   btn.disabled = true;
@@ -853,6 +976,7 @@ async function loadAll() {
   await Promise.allSettled([
     ...EXCHANGES.map(ex => loadExchange(ex.id)),
     loadWatchlist(),
+    loadScreener(),
   ]);
 
   document.getElementById("last-updated").textContent =

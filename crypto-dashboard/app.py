@@ -6,8 +6,10 @@ import time
 import json
 import requests
 from datetime import datetime, timezone
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 from dotenv import load_dotenv
+
+from screener import run_scan as screener_run_scan, load_cache as screener_load_cache
 
 load_dotenv()
 
@@ -493,6 +495,21 @@ def watchlist_route():
         x["symbol"],
     ))
     return jsonify({"watchlist": result, "fetched_at": datetime.utcnow().isoformat() + "Z"})
+
+
+@app.route("/api/screener")
+def screener_route():
+    """Altcoin Cycle Screener. Serves the cached scan; ?refresh=1 re-scans
+    (takes ~60-90s keyless, ~40s with COINGECKO_API_KEY in .env)."""
+    if request.args.get("refresh") == "1":
+        return jsonify(screener_run_scan())
+    cached = screener_load_cache()
+    if cached:
+        return jsonify(cached)
+    return jsonify({
+        "error": "No cached scan yet. Call /api/screener?refresh=1 or run: python screener.py",
+        "rows": [],
+    })
 
 
 @app.route("/api/debug/okx")
