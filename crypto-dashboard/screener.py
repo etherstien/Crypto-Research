@@ -83,11 +83,29 @@ NARRATIVE_CATEGORIES = [
     "stablecoin-protocol",
 ]
 
+# Hard-excluded categories: tokenized equities/ETFs track their underlying
+# stock — they cannot 10x from token dynamics and pollute the RWA narrative.
+EXCLUDED_CATEGORIES = [
+    "tokenized-stock",
+    "tokenized-stocks",
+    "tokenized-assets",
+    "tokenized-etfs",
+    "tokenized-treasury-bonds",
+]
+
+# 30d moves beyond this (vs BTC, in %) are treated as listing/repricing data
+# artifacts and excluded; survivors are clamped so one outlier can't own the
+# top momentum percentile.
+RS_ARTIFACT_LIMIT = 1000.0
+RS_CLAMP_HI = 300.0
+RS_CLAMP_LO = -95.0
+
 STABLE_SYMBOLS = {
     "usdt", "usdc", "dai", "tusd", "usdp", "gusd", "busd", "frax", "usde",
     "fdusd", "pyusd", "usdd", "usds", "usd1", "usdx", "eurc", "eurt", "rlusd",
 }
-WRAPPED_HINTS = ("wrapped", "staked", "bridged", "restaked", "peg", "binance-peg")
+WRAPPED_HINTS = ("wrapped", "staked", "bridged", "restaked", "peg", "binance-peg",
+                 "xstock", "tokenized")
 
 
 def _cg_headers():
@@ -162,6 +180,23 @@ def fetch_narrative_members():
     return members
 
 
+def fetch_excluded_ids():
+    """coin_ids in hard-excluded categories (tokenized stocks/ETFs/bonds)."""
+    excluded = set()
+    for slug in EXCLUDED_CATEGORIES:
+        data = _get(f"{CG_BASE}/coins/markets", params={
+            "vs_currency": "usd",
+            "category": slug,
+            "order": "market_cap_desc",
+            "per_page": 250,
+            "page": 1,
+        }, headers=_cg_headers())
+        if data:
+            excluded.update(c["id"] for c in data)
+        _cg_sleep()
+    return excluded
+
+
 def fetch_llama_fees():
     """gecko_id -> annualized protocol fees (USD), best-effort mapping."""
     fees_by_gecko = {}
@@ -171,9 +206,12 @@ def fetch_llama_fees():
         gid = p.get("gecko_id")
         if gid:
             name_to_gecko[(p.get("name") or "").lower()] = gid
+    # dataType=dailyRevenue = what accrues to the protocol/holders, NOT gross
+    # fees (Lido-style staking passthrough inflates plain fees ~10x).
     overview = _get(f"{LLAMA_BASE}/overview/fees", params={
         "excludeTotalDataChart": "true",
         "excludeTotalDataChartBreakdown": "true",
+        "dataType": "dailyRevenue",
     }) or {}
     for proto in overview.get("protocols", []):
         gid = proto.get("gecko_id") or name_to_gecko.get((proto.get("name") or "").lower())
@@ -249,6 +287,7 @@ def run_scan():
 
     glob = fetch_global()
     narratives = fetch_narrative_members()
+    excluded_ids = fetch_excluded_ids()
     fees = fetch_llama_fees()
     binance_listed = fetch_binance_listed()
     fng = fetch_fear_greed()
@@ -278,6 +317,8 @@ def run_scan():
     for c in markets:
         if c["id"] in ("bitcoin", "ethereum"):
             continue
+        if c["id"] in excluded_ids:
+            continue
         if _is_excluded_asset(c):
             continue
         mcap = c.get("market_cap") or 0
@@ -290,6 +331,9 @@ def run_scan():
         vol = c.get("total_volume") or 0
         if mcap and (vol / mcap) < VOL_MCAP_MIN:
             continue
+        chg30 = c.get("price_change_percentage_30d_in_currency")
+        if chg30 is not None and (chg30 - btc_30d) > RS_ARTIFACT_LIMIT:
+            continue  # listing/repricing data artifact, not tradeable momentum
         candidates.append(c)
 
     # ── Factor arrays ─────────────────────────────────────────────────────
@@ -302,13 +346,16 @@ def run_scan():
     for c in candidates:
         annual = fees.get(c["id"])
         rev_yields.append((annual / c["market_cap"]) if (annual and c.get("market_cap")) else None)
+    def _clamp_rs(v):
+        return None if v is None else max(RS_CLAMP_LO, min(RS_CLAMP_HI, v))
+
     mom_30 = [
-        (c.get("price_change_percentage_30d_in_currency") - btc_30d)
+        _clamp_rs(c.get("price_change_percentage_30d_in_currency") - btc_30d)
         if c.get("price_change_percentage_30d_in_currency") is not None else None
         for c in candidates
     ]
     rs_200 = [
-        (c.get("price_change_percentage_200d_in_currency") - btc_200d)
+        _clamp_rs(c.get("price_change_percentage_200d_in_currency") - btc_200d)
         if c.get("price_change_percentage_200d_in_currency") is not None else None
         for c in candidates
     ]
