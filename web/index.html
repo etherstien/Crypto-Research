@@ -90,6 +90,20 @@
       this list is a research queue, not a buy list.
     </div>
   </div>
+
+  <!-- TDR Pro Watchlist -->
+  <div class="card" id="wl-card" style="display:none; margin-top:1rem">
+    <div style="padding:.8rem 1rem; border-bottom:1px solid var(--border)">
+      <strong style="font-size:1rem">TDR Pro Watchlist</strong>
+      <span class="mut" id="wl-meta" style="margin-left:.6rem; font-size:.8rem"></span>
+    </div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Asset</th><th class="r">Price</th><th class="r">24h</th><th></th></tr></thead>
+      <tbody id="wl-rows"></tbody>
+    </table></div>
+    <div class="foot">Crypto prices load live from CoinGecko on each visit; stock quotes refresh nightly.
+      &#9679; HELD = position you hold. A blank price means the CoinGecko id in watchlist.json needs fixing.</div>
+  </div>
 </div>
 
 <script>
@@ -128,6 +142,61 @@ async function renderCycle() {
     `<td class="mut" style="font-size:.76em; white-space:normal">${s.detail}</td></tr>`).join("");
 }
 renderCycle();
+
+function fmtPx(v) {
+  if (v == null || isNaN(v)) return "—";
+  if (v >= 1000) return "$" + v.toLocaleString(undefined, {maximumFractionDigits: 0});
+  if (v >= 1) return "$" + v.toFixed(v >= 100 ? 1 : 3);
+  if (v >= 0.01) return "$" + v.toFixed(4);
+  if (v >= 0.0001) return "$" + v.toFixed(6);
+  return "$" + v.toFixed(8);
+}
+
+async function renderWatchlist() {
+  const cfg = await loadJson("watchlist.json");
+  if (!cfg || !(cfg.groups || []).length) return;
+  const stocks = await loadJson("stocks.json") || {};
+
+  const ids = [];
+  cfg.groups.forEach(g => g.rows.forEach(r => { if (r.cg) ids.push(r.cg); }));
+  let cgData = {};
+  try {
+    const resp = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=" +
+      encodeURIComponent(ids.join(",")) + "&vs_currencies=usd&include_24hr_change=true");
+    if (resp.ok) cgData = await resp.json();
+  } catch {}
+
+  const rows = [];
+  let priced = 0, total = 0;
+  cfg.groups.forEach(g => {
+    rows.push(`<tr><td colspan="4" style="background:#1c2230; color:var(--accent); font-size:.78rem; letter-spacing:.05em; text-transform:uppercase">${g.name}</td></tr>`);
+    g.rows.forEach(r => {
+      total++;
+      let px = null, chg = null, src = "";
+      if (r.cg && cgData[r.cg]) {
+        px = cgData[r.cg].usd; chg = cgData[r.cg].usd_24h_change;
+      } else if (r.type === "stock" && stocks[r.sym]) {
+        px = stocks[r.sym].price; chg = stocks[r.sym].chg_pct;
+        src = ` <span class="mut" style="font-size:.68em">EOD</span>`;
+      }
+      if (px != null) priced++;
+      const chgHtml = chg == null ? '<span class="mut">—</span>'
+        : `<span class="${chg >= 0 ? "pos" : "neg"}">${chg >= 0 ? "+" : ""}${chg.toFixed(2)}%</span>`;
+      rows.push(`<tr>
+        <td><strong>${r.sym}</strong> <span class="mut" style="font-size:.78em">${r.name}</span></td>
+        <td class="r">${fmtPx(px)}${src}</td>
+        <td class="r">${chgHtml}</td>
+        <td>${r.held ? '<span class="pos" style="font-size:.72em">&#9679; HELD</span>' : ""}</td>
+      </tr>`);
+    });
+  });
+
+  document.getElementById("wl-card").style.display = "block";
+  document.getElementById("wl-meta").textContent =
+    `${priced}/${total} priced · crypto live · stocks nightly`;
+  document.getElementById("wl-rows").innerHTML = rows.join("");
+}
+renderWatchlist();
 
 (async () => {
   const [data, prev] = await Promise.all([loadJson("data.json"), loadJson("data_prev.json")]);
