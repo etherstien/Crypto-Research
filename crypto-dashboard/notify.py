@@ -41,20 +41,39 @@ def _load(path):
         return None
 
 
+def _normalize_topic(raw):
+    """Accept a bare topic OR a pasted full URL; return the bare topic."""
+    t = raw.strip().rstrip("/")
+    if "/" in t:
+        t = t.split("/")[-1]
+    return t
+
+
 def _push(topic, title, message, priority="default", tags=""):
     try:
-        requests.post(f"https://ntfy.sh/{topic}", data=message.encode("utf-8"),
-                      headers={"Title": title, "Priority": priority, "Tags": tags},
-                      timeout=15)
-        print(f"ntfy sent: {title}")
+        r = requests.post(f"https://ntfy.sh/{topic}", data=message.encode("utf-8"),
+                          headers={"Title": title, "Priority": priority, "Tags": tags},
+                          timeout=15)
+        if r.status_code == 200:
+            print(f"ntfy sent (HTTP 200): {title}")
+        else:
+            print(f"ntfy REJECTED (HTTP {r.status_code}): {title} — {r.text[:120]}")
     except Exception as e:
         print(f"ntfy send failed: {e}", file=sys.stderr)
 
 
 def main():
-    topic = os.getenv("NTFY_TOPIC", "").strip()
+    topic = _normalize_topic(os.getenv("NTFY_TOPIC", ""))
     if not topic:
         print("NTFY_TOPIC not set — skipping notifications")
+        return
+    print(f"topic loaded ({len(topic)} chars)")
+
+    if os.getenv("NTFY_TEST") == "1":
+        _push(topic, "Test: crypto pipeline connected",
+              "If you can read this, the GitHub -> ntfy path works end-to-end. "
+              "Real alerts fire on cycle signals, referee lines, regime changes "
+              "and screener top-10 movers.", priority="high", tags="white_check_mark")
         return
 
     cyc = _load(os.path.join(WEB, "cycle.json"))
