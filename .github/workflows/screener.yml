@@ -36,6 +36,11 @@ jobs:
           python crypto-dashboard/cycle_monitor.py || echo "cycle monitor failed - keeping previous cycle.json"
           [ -f crypto-dashboard/cycle_cache.json ] && cp crypto-dashboard/cycle_cache.json web/cycle.json || true
 
+      - name: Fetch stock quotes for watchlist
+        run: |
+          python crypto-dashboard/watchlist_stocks.py || echo "stocks fetch failed (non-fatal)"
+          [ -f crypto-dashboard/stocks_cache.json ] && cp crypto-dashboard/stocks_cache.json web/stocks.json || true
+
       - name: Send ntfy notifications
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
@@ -49,5 +54,6 @@ jobs:
           [ -f web/data_prev.json ] && git add web/data_prev.json
           [ -f web/cycle.json ] && git add web/cycle.json
           [ -f web/cycle_prev.json ] && git add web/cycle_prev.json
+          [ -f web/stocks.json ] && git add web/stocks.json
           git diff --cached --quiet && echo "No changes" || git commit -m "Nightly screener scan"
           git push

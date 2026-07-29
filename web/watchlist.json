@@ -1,0 +1,83 @@
+{
+  "_note": "Watchlist config. cg = CoinGecko id (crypto, fetched live in browser); type stock = nightly quote via workflow. held = you hold it. Fix any wrong cg id here and redeploy.",
+  "groups": [
+    {
+      "name": "TDR Pro — Positions",
+      "rows": [
+        {"sym": "BTC",     "name": "Bitcoin",        "cg": "bitcoin"},
+        {"sym": "ETH",     "name": "Ethereum",       "cg": "ethereum"},
+        {"sym": "COIN",    "name": "Coinbase",       "type": "stock"},
+        {"sym": "CRCL",    "name": "Circle",         "type": "stock", "held": true},
+        {"sym": "LIT",     "name": "Lighter",        "cg": "lighter", "held": true},
+        {"sym": "DRV",     "name": "Derive",         "cg": "derive"},
+        {"sym": "PUMP",    "name": "Pump.fun",       "cg": "pump-fun", "held": true},
+        {"sym": "ENA",     "name": "Ethena",         "cg": "ethena", "held": true},
+        {"sym": "PENGU",   "name": "Pudgy Penguins", "cg": "pudgy-penguins", "held": true},
+        {"sym": "SPX6900", "name": "SPX6900",        "cg": "spx6900"},
+        {"sym": "USELESS", "name": "Useless Coin",   "cg": "useless-coin", "held": true},
+        {"sym": "ANSEM",   "name": "The Black Bull", "cg": "the-black-bull", "held": true}
+      ]
+    },
+    {
+      "name": "TDR Watchlist — No Buys Yet",
+      "rows": [
+        {"sym": "2Z",     "name": "DoubleZero",   "cg": "doublezero"},
+        {"sym": "AAVE",   "name": "Aave",         "cg": "aave"},
+        {"sym": "ADA",    "name": "Cardano",      "cg": "cardano"},
+        {"sym": "AERO",   "name": "Aerodrome",    "cg": "aerodrome-finance", "held": true},
+        {"sym": "APT",    "name": "Aptos",        "cg": "aptos"},
+        {"sym": "ASTER",  "name": "Aster",        "cg": "aster-2"},
+        {"sym": "AVAX",   "name": "Avalanche",    "cg": "avalanche-2"},
+        {"sym": "AZTEC",  "name": "Aztec",        "cg": "aztec"},
+        {"sym": "BNB",    "name": "BNB",          "cg": "binancecoin"},
+        {"sym": "BONK",   "name": "Bonk",         "cg": "bonk", "held": true},
+        {"sym": "CC",     "name": "Canton",       "cg": "canton-coin", "held": true},
+        {"sym": "DOGE",   "name": "Dogecoin",     "cg": "dogecoin"},
+        {"sym": "FLUID",  "name": "Fluid",        "cg": "instadapp"},
+        {"sym": "FOGO",   "name": "Fogo",         "cg": "fogo"},
+        {"sym": "GLXY",   "name": "Galaxy Digital", "type": "stock"},
+        {"sym": "GOOGL",  "name": "Alphabet",     "type": "stock"},
+        {"sym": "HOOD",   "name": "Robinhood",    "type": "stock", "held": true},
+        {"sym": "HYPE",   "name": "Hyperliquid",  "cg": "hyperliquid", "held": true},
+        {"sym": "IO",     "name": "io.net",       "cg": "io"},
+        {"sym": "JTO",    "name": "Jito",         "cg": "jito-governance-token"},
+        {"sym": "JUP",    "name": "Jupiter",      "cg": "jupiter-exchange-solana"},
+        {"sym": "KMNO",   "name": "Kamino",       "cg": "kamino"},
+        {"sym": "MON",    "name": "Monad",        "cg": "monad"},
+        {"sym": "MORPHO", "name": "Morpho",       "cg": "morpho", "held": true},
+        {"sym": "MSFT",   "name": "Microsoft",    "type": "stock", "held": true},
+        {"sym": "ORBS",   "name": "Eightco (WLD DAT)", "type": "stock"},
+        {"sym": "PENDLE", "name": "Pendle",       "cg": "pendle"},
+        {"sym": "PEPE",   "name": "Pepe",         "cg": "pepe"},
+        {"sym": "PHA",    "name": "Phala",        "cg": "pha"},
+        {"sym": "RAY",    "name": "Raydium",      "cg": "raydium"},
+        {"sym": "SOL",    "name": "Solana",       "cg": "solana", "held": true},
+        {"sym": "SPCX",   "name": "SPCX",         "type": "stock"},
+        {"sym": "SUI",    "name": "Sui",          "cg": "sui", "held": true},
+        {"sym": "SYRUP",  "name": "Maple/Syrup",  "cg": "syrup"},
+        {"sym": "TIA",    "name": "Celestia",     "cg": "celestia"},
+        {"sym": "TURBO",  "name": "Turbo",        "cg": "turbo"},
+        {"sym": "UNI",    "name": "Uniswap",      "cg": "uniswap"},
+        {"sym": "WAL",    "name": "Walrus",       "cg": "walrus-2"},
+        {"sym": "XPL",    "name": "Plasma",       "cg": "plasma"},
+        {"sym": "XRP",    "name": "XRP",          "cg": "ripple"},
+        {"sym": "ZEC",    "name": "Zcash",        "cg": "zcash"}
+      ]
+    },
+    {
+      "name": "AI",
+      "rows": [
+        {"sym": "TAO",    "name": "Bittensor",    "cg": "bittensor"},
+        {"sym": "GRASS",  "name": "Grass",        "cg": "grass"},
+        {"sym": "RENDER", "name": "Render",       "cg": "render-token"},
+        {"sym": "AKT",    "name": "Akash",        "cg": "akash-network"},
+        {"sym": "NEAR",   "name": "NEAR",         "cg": "near"},
+        {"sym": "ATH",    "name": "Aethir",       "cg": "aethir"},
+        {"sym": "DEXE",   "name": "DeXe",         "cg": "dexe"},
+        {"sym": "VVV",    "name": "Venice",       "cg": "venice-token"},
+        {"sym": "WLD",    "name": "Worldcoin",    "cg": "worldcoin-wld", "held": true},
+        {"sym": "IP",     "name": "Story (DATA)", "cg": "story-2"}
+      ]
+    }
+  ]
+}
