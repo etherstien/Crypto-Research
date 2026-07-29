@@ -8,6 +8,12 @@ on:
 permissions:
   contents: write
 
+# Queue runs instead of overlapping — two simultaneous runs race on the
+# final data-commit push and the loser fails with a non-fast-forward error
+concurrency:
+  group: screener-scan
+  cancel-in-progress: false
+
 jobs:
   scan:
     runs-on: ubuntu-latest
@@ -56,4 +62,5 @@ jobs:
           [ -f web/cycle_prev.json ] && git add web/cycle_prev.json
           [ -f web/stocks.json ] && git add web/stocks.json
           git diff --cached --quiet && echo "No changes" || git commit -m "Nightly screener scan"
+          git pull --rebase origin main
           git push
