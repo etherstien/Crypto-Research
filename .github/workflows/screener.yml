@@ -3,7 +3,12 @@ name: Nightly screener scan
 on:
   schedule:
     - cron: "20 6 * * *"   # 06:20 UTC daily (~1:20am CT)
-  workflow_dispatch: {}     # manual "Run workflow" button
+  workflow_dispatch:        # manual "Run workflow" button
+    inputs:
+      test_ntfy:
+        description: "Send a test ntfy push instead of change-detection"
+        required: false
+        default: "0"
 
 permissions:
   contents: write
@@ -50,6 +55,7 @@ jobs:
       - name: Send ntfy notifications
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_TEST: ${{ github.event.inputs.test_ntfy || '0' }}
         run: python crypto-dashboard/notify.py || echo "notify failed (non-fatal)"
 
       - name: Commit refreshed data
