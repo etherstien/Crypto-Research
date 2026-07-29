@@ -32,7 +32,9 @@ def fetch_yahoo(sym):
     meta = res.get("meta", {})
     closes = [c for c in res["indicators"]["quote"][0].get("close", []) if c is not None]
     price = meta.get("regularMarketPrice") or (closes[-1] if closes else None)
-    prev = meta.get("chartPreviousClose") or (closes[-2] if len(closes) >= 2 else None)
+    # closes[-2] = yesterday's close (true 1-day change); chartPreviousClose
+    # is relative to the 5d range start and overstates the move
+    prev = (closes[-2] if len(closes) >= 2 else None) or meta.get("chartPreviousClose")
     if price is None:
         return None
     chg = round(100 * (price - prev) / prev, 2) if prev else None
