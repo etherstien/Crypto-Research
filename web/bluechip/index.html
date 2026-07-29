@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BlueChip Value</title>
+<style>
+  :root { --bg:#0d1117; --border:#21262d; --muted:#8b949e; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:#c9d1d9; font:14px/1.5 -apple-system,"Segoe UI",Roboto,sans-serif; display:flex; flex-direction:column; height:100vh; }
+  nav { display:flex; gap:.35rem; padding:.75rem 1rem .6rem; border-bottom:1px solid var(--border); flex:0 0 auto; }
+  nav a { border-radius:8px; padding:.35rem .8rem; font-size:.82rem; text-decoration:none; }
+  .inactive { color:var(--muted); }
+  .active { color:#fff; background:#1c2230; border:1px solid var(--border); font-weight:600; }
+  iframe { flex:1 1 auto; width:100%; border:0; }
+  .fallback { padding:2rem; text-align:center; color:var(--muted); display:none; }
+  .fallback a { color:#58a6ff; }
+</style>
+</head>
+<body>
+<nav>
+  <a class="inactive" href="/">Crypto Dashboard</a>
+  <a class="active" href="/bluechip/">BlueChip Value</a>
+</nav>
+<!-- Interim embed of the standalone bluechip-value site until its code is
+     migrated into this repo (Phase 2 of the site consolidation). -->
+<iframe id="bc" src="https://bluechip-value.netlify.app/" title="BlueChip Value"></iframe>
+<div class="fallback" id="fb">
+  Embed blocked by the source site's headers —
+  <a href="https://bluechip-value.netlify.app/" target="_blank" rel="noopener">open BlueChip Value in a new tab</a>.
+</div>
+<script>
+  // If the frame is blocked (X-Frame-Options/CSP), it stays about:blank-ish;
+  // we can't reliably detect cross-origin load failure, so offer the fallback
+  // link after a grace period regardless — harmless if the embed worked.
+  setTimeout(() => {
+    const fb = document.getElementById("fb");
+    fb.style.display = "block";
+    fb.style.flex = "0 0 auto";
+  }, 4000);
+</script>
+</body>
+</html>
