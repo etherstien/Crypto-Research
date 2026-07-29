@@ -3,3 +3,7 @@ python-dotenv==1.0.1
 requests==2.32.3
 krakenex==2.1.0
 robin_stocks==3.4.0
+# rare_break_scanner.py (bluechip 200 DMA screen)
+yfinance>=0.2.40
+pandas>=2.0
+numpy>=1.24

@@ -52,6 +52,28 @@ jobs:
           python crypto-dashboard/watchlist_stocks.py || echo "stocks fetch failed (non-fatal)"
           [ -f crypto-dashboard/stocks_cache.json ] && cp crypto-dashboard/stocks_cache.json web/stocks.json || true
 
+      - name: Run bluechip rare-break scan
+        run: |
+          # ~500 tickers x 10y of daily bars via yfinance; slow and flaky, so
+          # everything here is non-fatal and a bad payload never overwrites a
+          # good web/bluechip/scan.json (see publish guard below).
+          pip install -q yfinance pandas numpy || echo "bluechip deps install failed (non-fatal)"
+          python crypto-dashboard/rare_break_scanner.py --selftest || echo "bluechip selftest failed (non-fatal)"
+          timeout 25m python crypto-dashboard/rare_break_scanner.py \
+            --json-out crypto-dashboard/bluechip_scan.json \
+            --out /tmp/rare_break_scan.csv \
+            --include-all || echo "bluechip scan failed (non-fatal)"
+          [ -f crypto-dashboard/bluechip_scan.json ] && python - <<'PY' && cp crypto-dashboard/bluechip_scan.json web/bluechip/scan.json || echo "bluechip scan not published (non-fatal)"
+          import json, sys
+          d = json.load(open('crypto-dashboard/bluechip_scan.json'))
+          n = len(d.get('rows', []))
+          print(f"{n} names in bluechip payload")
+          if n < 100:
+              sys.exit(f"only {n} names - data pull probably failed, keeping previous scan.json")
+          if d.get('demo'):
+              sys.exit("payload still flagged demo, keeping previous scan.json")
+          PY
+
       - name: Send ntfy notifications
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
@@ -67,6 +89,7 @@ jobs:
           [ -f web/cycle.json ] && git add web/cycle.json
           [ -f web/cycle_prev.json ] && git add web/cycle_prev.json
           [ -f web/stocks.json ] && git add web/stocks.json
+          [ -f web/bluechip/scan.json ] && git add web/bluechip/scan.json
           git diff --cached --quiet && echo "No changes" || git commit -m "Nightly screener scan"
           git pull --rebase origin main
           git push
