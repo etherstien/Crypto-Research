@@ -5,39 +5,505 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BlueChip Value</title>
 <style>
-  :root { --bg:#0d1117; --border:#21262d; --muted:#8b949e; }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:var(--bg); color:#c9d1d9; font:14px/1.5 -apple-system,"Segoe UI",Roboto,sans-serif; display:flex; flex-direction:column; height:100vh; }
-  nav { display:flex; gap:.35rem; padding:.75rem 1rem .6rem; border-bottom:1px solid var(--border); flex:0 0 auto; }
-  nav a { border-radius:8px; padding:.35rem .8rem; font-size:.82rem; text-decoration:none; }
-  .inactive { color:var(--muted); }
-  .active { color:#fff; background:#1c2230; border:1px solid var(--border); font-weight:600; }
-  iframe { flex:1 1 auto; width:100%; border:0; }
-  .fallback { padding:2rem; text-align:center; color:var(--muted); display:none; }
-  .fallback a { color:#58a6ff; }
+:root{
+  --ink:#0d1117; --panel:#161b22; --panel2:#1c2230; --rule:#21262d;
+  --text:#c9d1d9; --dim:#8b949e; --faint:#6e7681;
+  --rise:#3fb950;      /* trend intact  */
+  --fall:#f85149;      /* trend rolling */
+  --caution:#d29922;   /* thin evidence */
+  --field:#0b0f14;
+  --sc:-apple-system,Segoe UI,Roboto,sans-serif;
+  --mo:ui-monospace,Menlo,Consolas,monospace;
+  --sa:-apple-system,Segoe UI,Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--ink); color:var(--text); font-family:var(--sa);
+  font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+
+/* ---------- site nav ---------- */
+nav{display:flex;gap:.35rem;padding:.75rem 1rem .6rem;border-bottom:1px solid var(--rule)}
+nav a{border-radius:8px;padding:.35rem .8rem;font-size:.82rem;text-decoration:none}
+nav .inactive{color:var(--dim)}
+nav .active{color:#fff;background:#1c2230;border:1px solid var(--rule);font-weight:600}
+.wrap{max-width:1280px;margin:0 auto;padding:0 20px 80px}
+
+/* ---------- instrument readout header ---------- */
+.masthead{border-bottom:1px solid var(--rule);padding:26px 0 0}
+.eyebrow{
+  font-family:var(--sc);font-weight:700;font-size:11px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--rise);margin:0 0 6px
+}
+.masthead h1{
+  font-family:var(--sc);font-weight:700;font-size:clamp(26px,4vw,42px);
+  letter-spacing:-.01em;margin:0 0 4px;line-height:1.05
+}
+.sub{color:var(--dim);max-width:60ch;margin:0 0 22px;font-size:14px}
+.readout{
+  display:flex;flex-wrap:wrap;gap:0;border-top:1px solid var(--rule);
+  margin-top:4px
+}
+.cell{
+  padding:12px 22px 14px;border-right:1px solid var(--rule);flex:0 0 auto;
+}
+.cell:last-child{border-right:0}
+.cell .k{
+  font-family:var(--sc);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);display:block;margin-bottom:3px
+}
+.cell .v{font-family:var(--mo);font-size:19px;font-weight:500}
+.v.rise{color:var(--rise)} .v.fall{color:var(--fall)} .v.caution{color:var(--caution)}
+
+.banner{
+  background:var(--caution);color:#141A0C;font-family:var(--sc);font-weight:600;
+  font-size:13px;letter-spacing:.03em;padding:9px 20px
+}
+.banner b{font-weight:700}
+
+/* ---------- section framing ---------- */
+.sec{margin-top:44px}
+.sec-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+.sec-head h2{
+  font-family:var(--sc);font-weight:700;font-size:19px;letter-spacing:.01em;margin:0
+}
+.sec-head .note{color:var(--dim);font-size:13px}
+.lede{color:var(--dim);max-width:74ch;margin:0 0 18px;font-size:13.5px}
+
+/* ---------- quadrant plot ---------- */
+.plotbox{
+  background:var(--field);border:1px solid var(--rule);border-radius:10px;
+  position:relative;overflow:hidden
+}
+#plot{display:block;width:100%;height:auto}
+.dot{cursor:pointer;transition:opacity .12s}
+.dot:focus{outline:2px solid var(--text);outline-offset:2px}
+.plotbox.dimmed .dot:not(.on){opacity:.18}
+.tip{
+  position:absolute;pointer-events:none;opacity:0;transform:translate(-50%,-118%);
+  background:var(--panel2);border:1px solid var(--rule);border-radius:10px;
+  padding:9px 11px;min-width:190px;z-index:5;transition:opacity .1s
+}
+.tip.on{opacity:1}
+.tip .t{font-family:var(--sc);font-weight:700;font-size:15px;letter-spacing:.02em}
+.tip .r{display:flex;justify-content:space-between;gap:16px;font-size:11.5px;margin-top:3px}
+.tip .r span:first-child{color:var(--dim)}
+.tip .r span:last-child{font-family:var(--mo)}
+
+/* ---------- controls ---------- */
+.controls{
+  display:flex;flex-wrap:wrap;gap:22px;padding:16px 18px;margin-top:14px;
+  background:var(--panel);border:1px solid var(--rule);border-radius:10px
+}
+.ctl{display:flex;flex-direction:column;gap:6px;min-width:172px;flex:1 1 172px}
+.ctl label{
+  font-family:var(--sc);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);display:flex;justify-content:space-between;gap:10px
+}
+.ctl label b{font-family:var(--mo);font-weight:500;color:var(--text);letter-spacing:0}
+.ctl input[type=range]{width:100%;accent-color:var(--rise);height:18px}
+.toggles{display:flex;flex-direction:column;gap:7px;justify-content:center}
+.tg{display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;color:var(--dim)}
+.tg input{accent-color:var(--rise);width:15px;height:15px;cursor:pointer}
+
+/* ---------- table ---------- */
+.tablescroll{overflow-x:auto;border:1px solid var(--rule);border-radius:10px;margin-top:14px}
+table{border-collapse:collapse;width:100%;min-width:960px;background:var(--panel)}
+th,td{padding:9px 11px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--rule)}
+th{
+  font-family:var(--sc);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--faint);background:var(--panel2);cursor:pointer;user-select:none;
+  position:sticky;top:0;z-index:2
+}
+th:hover,th:focus{color:var(--text)}
+th.sorted{color:var(--rise)}
+th .ar{font-family:var(--mo);opacity:.75}
+td{font-family:var(--mo);font-size:12.5px}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--panel)}
+th:first-child{background:var(--panel2);z-index:3}
+tbody tr:hover td{background:var(--panel2)}
+tbody tr:hover td:first-child{background:var(--panel2)}
+tbody tr.flash td{background:#1c2f45!important;transition:background .35s}
+.sym{font-family:var(--sc);font-weight:700;font-size:14px;letter-spacing:.03em}
+.neg{color:var(--fall)} .pos{color:var(--rise)} .mut{color:var(--faint)}
+.chip{
+  display:inline-block;font-family:var(--sc);font-size:9.5px;font-weight:700;
+  letter-spacing:.09em;padding:1.5px 5px;border-radius:4px;margin-left:5px;
+  vertical-align:1px
+}
+.chip.roll{background:var(--fall);color:#fff}
+.chip.thin{background:var(--caution);color:#1A1405}
+.empty{padding:34px 18px;text-align:center;color:var(--dim);font-size:13.5px}
+
+/* ---------- caveats ---------- */
+.caveats{margin-top:44px;border-top:1px solid var(--rule);padding-top:22px}
+.caveats h2{font-family:var(--sc);font-size:15px;letter-spacing:.03em;margin:0 0 14px;
+  text-transform:uppercase;color:var(--caution)}
+.caveats ol{margin:0;padding-left:20px;max-width:82ch;color:var(--dim);font-size:13px}
+.caveats li{margin-bottom:11px}
+.caveats b{color:var(--text);font-weight:500}
+.foot{margin-top:26px;color:var(--faint);font-size:11.5px;font-family:var(--mo)}
+
+@media(max-width:720px){
+  .cell{padding:10px 14px}
+  .cell .v{font-size:16px}
+  .controls{gap:14px}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
+
 <nav>
   <a class="inactive" href="/">Crypto Dashboard</a>
   <a class="active" href="/bluechip/">BlueChip Value</a>
 </nav>
-<!-- Interim embed of the standalone bluechip-value site until its code is
-     migrated into this repo (Phase 2 of the site consolidation). -->
-<iframe id="bc" src="https://bluechip-value.netlify.app/" title="BlueChip Value"></iframe>
-<div class="fallback" id="fb">
-  Embed blocked by the source site's headers —
-  <a href="https://bluechip-value.netlify.app/" target="_blank" rel="noopener">open BlueChip Value in a new tab</a>.
+
+<div id="banner"></div>
+
+<div class="wrap">
+  <header class="masthead">
+    <p class="eyebrow">Rare-break screen</p>
+    <h1>Blue chips below their 200&#8209;day average</h1>
+    <p class="sub">Names that almost never trade below their long-term trend — and are
+    below it right now. Position on the plot is the read; the table is the detail.</p>
+    <div class="readout" id="readout"></div>
+  </header>
+
+  <section class="sec">
+    <div class="sec-head">
+      <h2>Dip or de&#8209;rating</h2>
+      <span class="note">every name currently below its 200&nbsp;DMA</span>
+    </div>
+    <p class="lede">The horizontal axis is the slope of the 200&nbsp;DMA itself. Right of the
+    centre line the trend is still rising, so a break is a dip. Left of it the trend is rolling
+    over, and the same break is a de&#8209;rating in progress. Sorting a list by dislocation puts
+    these two side by side; separating them by position does not. Dot size is the number of prior
+    breaks — small dots have almost no history behind them.</p>
+    <div class="plotbox" id="plotbox">
+      <svg id="plot" viewBox="0 0 1000 560" role="img"
+           aria-label="Scatter plot of dislocation percentile against 200-day average slope"></svg>
+      <div class="tip" id="tip"></div>
+    </div>
+
+    <div class="controls">
+      <div class="ctl">
+        <label for="f-rare">Max share of history below MA <b id="v-rare">10%</b></label>
+        <input type="range" id="f-rare" min="1" max="50" step="1" value="10">
+      </div>
+      <div class="ctl">
+        <label for="f-pct">Max dislocation percentile <b id="v-pct">100</b></label>
+        <input type="range" id="f-pct" min="1" max="100" step="1" value="100">
+      </div>
+      <div class="ctl">
+        <label for="f-brk">Min prior breaks <b id="v-brk">1</b></label>
+        <input type="range" id="f-brk" min="1" max="30" step="1" value="1">
+      </div>
+      <div class="ctl">
+        <label for="f-vol">Min dollar volume <b id="v-vol">$5M</b></label>
+        <input type="range" id="f-vol" min="0" max="200" step="5" value="5">
+      </div>
+      <div class="toggles">
+        <label class="tg"><input type="checkbox" id="f-rise"> Hide rolling-over trends</label>
+        <label class="tg"><input type="checkbox" id="f-thin"> Hide thin evidence (&lt;5 breaks)</label>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head">
+      <h2>Ranked detail</h2>
+      <span class="note" id="tcount"></span>
+    </div>
+    <div class="tablescroll">
+      <table id="tbl">
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="empty" style="display:none">
+      No names match. Loosen the filters above.
+    </div>
+  </section>
+
+  <section class="caveats">
+    <h2>Before you act on this</h2>
+    <ol>
+      <li><b>Survivorship bias.</b> The universe is today's index membership. Names that broke
+      their 200&nbsp;DMA and never recovered were deleted from the index and are invisible here.
+      Every forward-return figure below is biased upward as a result.</li>
+      <li><b>The rarity filter selects for stocks that have already compounded.</b> Intel, GE,
+      Cisco and Nokia all had this profile once. Each eventually broke the 200&nbsp;DMA and stayed
+      broken — and the break was the signal that the story had changed, not that the stock was
+      cheap.</li>
+      <li><b>Prior breaks is the real sample size.</b> Four breaks in ten years means forward
+      returns rest on four observations. Those rows are marked <span class="chip thin">THIN</span>
+      and their statistics are anecdote.</li>
+      <li><b>Nothing here reads a financial statement.</b> The screen cannot tell a quality
+      business in a macro drawdown from one that is de-rating. The slope column hints at it. It
+      does not settle it.</li>
+      <li><b>Prices are split- and dividend-adjusted</b>, so history shifts retroactively after
+      each dividend and an old scan will not reproduce exactly.</li>
+    </ol>
+    <p class="foot" id="foot"></p>
+  </section>
 </div>
+
 <script>
-  // If the frame is blocked (X-Frame-Options/CSP), it stays about:blank-ish;
-  // we can't reliably detect cross-origin load failure, so offer the fallback
-  // link after a grace period regardless — harmless if the embed worked.
-  setTimeout(() => {
-    const fb = document.getElementById("fb");
-    fb.style.display = "block";
-    fb.style.flex = "0 0 auto";
-  }, 4000);
+const COLS=[
+ {k:'symbol',       t:'Symbol',       fmt:null,             w:'sym'},
+ {k:'price',        t:'Price',        fmt:v=>v?.toFixed(2)},
+ {k:'dist_pct',     t:'vs MA %',      fmt:v=>v?.toFixed(1), sign:1},
+ {k:'dist_pctile',  t:'Dislocation %ile', fmt:v=>v?.toFixed(1)},
+ {k:'pct_days_below',t:'% hist below',fmt:v=>v?.toFixed(1)},
+ {k:'n_breaks',     t:'Breaks',       fmt:v=>v},
+ {k:'days_in_break',t:'Days in break',fmt:v=>v},
+ {k:'median_break_dd_pct',t:'Med break DD %',fmt:v=>v?.toFixed(1),sign:1},
+ {k:'ma_slope_60d_pct',t:'MA slope 60d %',fmt:v=>v?.toFixed(2),sign:1},
+ {k:'fwd_60d_median_pct', t:'Fwd 60d %', fmt:v=>v?.toFixed(1),sign:1},
+ {k:'fwd_250d_median_pct',t:'Fwd 250d %',fmt:v=>v?.toFixed(1),sign:1},
+ {k:'med_dollar_vol_musd',t:'$Vol M',  fmt:v=>v?.toFixed(0)},
+];
+let RAW=[], VIEW=[], sortKey='dist_pctile', sortAsc=true, P={};
+
+const $=id=>document.getElementById(id);
+const num=v=>(v===null||v===undefined||Number.isNaN(v))?null:v;
+
+fetch('scan.json?cb='+Date.now())
+  .then(r=>{if(!r.ok)throw new Error(r.status);return r.json()})
+  .then(d=>{
+    P=d.params||{};
+    RAW=(d.rows||[]).filter(r=>r.is_below);
+    if(d.demo) $('banner').innerHTML='<div class="banner"><b>Demo data.</b> '+
+      'These are simulated price histories, not a real scan. The nightly screener '+
+      'workflow replaces web/bluechip/scan.json with live results.</div>';
+    $('foot').textContent='Scan generated '+(d.generated_utc||'—')+
+      ' · '+(P.ma_len||200)+' '+String(P.ma_type||'sma').toUpperCase()+
+      ' · '+(P.years||10)+'y history · '+(P.analysed||RAW.length)+' names analysed'+
+      ' · not investment advice';
+    $('f-rare').value=P.max_pct_below??10;
+    $('f-vol').value=Math.min(200,P.min_dollar_vol??5);
+    buildHead(); apply();
+  })
+  .catch(e=>{
+    $('banner').innerHTML='<div class="banner"><b>No scan data.</b> '+
+      'Could not load scan.json ('+e.message+'). Run the scanner with '+
+      '--json-out web/bluechip/scan.json, then reload.</div>';
+    $('foot').textContent='No data loaded.';
+  });
+
+/* ---------------- filtering ---------------- */
+function apply(){
+  const rare=+$('f-rare').value, pct=+$('f-pct').value, brk=+$('f-brk').value,
+        vol=+$('f-vol').value, onlyRise=$('f-rise').checked, hideThin=$('f-thin').checked;
+  $('v-rare').textContent=rare+'%'; $('v-pct').textContent=pct;
+  $('v-brk').textContent=brk;       $('v-vol').textContent='$'+vol+'M';
+
+  VIEW=RAW.filter(r=>
+    (num(r.pct_days_below)??999)<=rare &&
+    (num(r.dist_pctile)??999)<=pct &&
+    (num(r.n_breaks)??0)>=brk &&
+    (num(r.med_dollar_vol_musd)??0)>=vol &&
+    (!onlyRise || (num(r.ma_slope_60d_pct)??-1)>0) &&
+    (!hideThin || (num(r.n_breaks)??0)>=5)
+  );
+  sortView(); draw(); table();
+}
+function sortView(){
+  VIEW.sort((a,b)=>{
+    let x=a[sortKey], y=b[sortKey];
+    if(typeof x==='string') return sortAsc?x.localeCompare(y):y.localeCompare(x);
+    x=num(x); y=num(y);
+    if(x===null) return 1; if(y===null) return -1;
+    return sortAsc?x-y:y-x;
+  });
+}
+
+/* ---------------- quadrant plot ---------------- */
+const PAD={l:64,r:26,t:26,b:52}, W=1000, H=560;
+function draw(){
+  const svg=$('plot'); svg.innerHTML='';
+  const iw=W-PAD.l-PAD.r, ih=H-PAD.t-PAD.b;
+  const slopes=VIEW.map(r=>num(r.ma_slope_60d_pct)).filter(v=>v!==null);
+  const lim=Math.max(4,Math.ceil(Math.max(...slopes.map(Math.abs),4)*1.12));
+  const X=v=>PAD.l+((Math.max(-lim,Math.min(lim,v))+lim)/(2*lim))*iw;
+  const Y=v=>PAD.t+(1-Math.max(0,Math.min(100,v))/100)*ih;
+  const el=(n,a)=>{const e=document.createElementNS('http://www.w3.org/2000/svg',n);
+    for(const k in a)e.setAttribute(k,a[k]);return e};
+
+  // horizontal percentile gridlines
+  [0,25,50,75,100].forEach(p=>{
+    svg.appendChild(el('line',{x1:PAD.l,x2:W-PAD.r,y1:Y(p),y2:Y(p),
+      stroke:'#21262d','stroke-width':1}));
+    const t=el('text',{x:PAD.l-11,y:Y(p)+4,'text-anchor':'end',fill:'#6e7681',
+      'font-size':11,'font-family':"ui-monospace,Menlo,Consolas,monospace"});
+    t.textContent=p; svg.appendChild(t);
+  });
+  // x ticks
+  [-lim,-lim/2,0,lim/2,lim].forEach(v=>{
+    const t=el('text',{x:X(v),y:H-PAD.b+21,'text-anchor':'middle',fill:'#6e7681',
+      'font-size':11,'font-family':"ui-monospace,Menlo,Consolas,monospace"});
+    t.textContent=(v>0?'+':'')+v.toFixed(1)+'%'; svg.appendChild(t);
+  });
+  // THE line: zero slope
+  svg.appendChild(el('line',{x1:X(0),x2:X(0),y1:PAD.t-6,y2:H-PAD.b+6,
+    stroke:'#8b949e','stroke-width':1.5}));
+  // in-field zone labels
+  const zone=(x,anch,txt,col)=>{
+    const t=el('text',{x,y:PAD.t+18,'text-anchor':anch,fill:col,'font-size':12,
+      'font-weight':700,'letter-spacing':'.16em',
+      'font-family':"-apple-system,Segoe UI,Roboto,sans-serif",opacity:.85});
+    t.textContent=txt; svg.appendChild(t);
+  };
+  zone(X(0)-14,'end','TREND ROLLING OVER','#f85149');
+  zone(X(0)+14,'start','TREND INTACT','#3fb950');
+  // axis titles
+  const ax=(x,y,txt,anch,rot)=>{
+    const t=el('text',{x,y,'text-anchor':anch,fill:'#8b949e','font-size':11,
+      'letter-spacing':'.14em','font-weight':600,
+      'font-family':"-apple-system,Segoe UI,Roboto,sans-serif"});
+    if(rot)t.setAttribute('transform',`rotate(-90 ${x} ${y})`);
+    t.textContent=txt; svg.appendChild(t);
+  };
+  ax(PAD.l+iw/2,H-8,'200 DMA SLOPE, 60 DAYS','middle',0);
+  ax(17,PAD.t+ih/2,'DISLOCATION PERCENTILE','middle',1);
+
+  // Pass 1: circles. Deepest dislocation drawn last so it sits on top.
+  const placed=[], pts=[];
+  [...VIEW].sort((a,b)=>(num(b.dist_pctile)??0)-(num(a.dist_pctile)??0)).forEach(r=>{
+    const s=num(r.ma_slope_60d_pct), p=num(r.dist_pctile);
+    if(s===null||p===null) return;
+    const n=num(r.n_breaks)??1, thin=n<5;
+    const rad=Math.max(5,Math.min(15,4.6+Math.sqrt(n)*2.1));
+    const col=s>0?'#3fb950':'#f85149';
+    const cx=X(s), cy=Y(p);
+    const g=el('g',{class:'dot',tabindex:0,'data-sym':r.symbol,
+      role:'button','aria-label':`${r.symbol}, percentile ${p.toFixed(0)}, slope ${s.toFixed(1)}%`});
+    g.appendChild(el('circle',{cx,cy,r:rad,fill:col,
+      'fill-opacity':thin?.2:.42,stroke:col,'stroke-width':thin?1.2:1.9,
+      'stroke-dasharray':thin?'3 2.5':'none'}));
+    const show=()=>tip(r,cx,cy), hide=()=>tipOff();
+    g.addEventListener('mouseenter',show); g.addEventListener('focus',show);
+    g.addEventListener('mouseleave',hide); g.addEventListener('blur',hide);
+    g.addEventListener('click',()=>jump(r.symbol));
+    g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){
+      e.preventDefault();jump(r.symbol)}});
+    svg.appendChild(g);
+    pts.push({r,cx,cy,rad,p});
+  });
+
+  // Pass 2: labels, most-dislocated first, skipped where they would collide.
+  // A dropped label is fine -- the dot stays hoverable and is in the table.
+  const hit=(a,b)=>!(a.x2<b.x1||b.x2<a.x1||a.y2<b.y1||b.y2<a.y1);
+  pts.sort((a,b)=>a.p-b.p).forEach(({r,cx,cy,rad})=>{
+    const w=r.symbol.length*7.4+4, h=13;
+    const cands=[[cx,cy-rad-7],[cx,cy+rad+15],[cx+rad+w/2+5,cy+4],[cx-rad-w/2-5,cy+4]];
+    for(const [lx,ly] of cands){
+      const box={x1:lx-w/2,x2:lx+w/2,y1:ly-h,y2:ly+3};
+      if(box.x1<PAD.l-4||box.x2>W-PAD.r+4||box.y1<PAD.t-4||box.y2>H-PAD.b+4) continue;
+      if(placed.some(q=>hit(box,q))) continue;
+      const lb=el('text',{x:lx,y:ly,'text-anchor':'middle',fill:'#c9d1d9',
+        'font-size':11.5,'font-weight':700,'letter-spacing':'.04em',
+        'font-family':"-apple-system,Segoe UI,Roboto,sans-serif",'pointer-events':'none'});
+      lb.textContent=r.symbol; svg.appendChild(lb); placed.push(box); break;
+    }
+  });
+  if(!VIEW.length){
+    const t=el('text',{x:W/2,y:H/2,'text-anchor':'middle',fill:'#6e7681','font-size':15,
+      'font-family':"-apple-system,Segoe UI,Roboto,sans-serif"});
+    t.textContent='No names match the current filters.'; svg.appendChild(t);
+  }
+  readout();
+}
+function tip(r,px,py){
+  const box=$('plotbox'), t=$('tip'), rect=box.getBoundingClientRect();
+  const sx=rect.width/W, sy=(rect.width*(H/W))/H;
+  const f=(v,d=1)=>v===null||v===undefined?'—':v.toFixed(d);
+  t.innerHTML=`<div class="t">${r.symbol}</div>`+
+    `<div class="r"><span>vs 200 DMA</span><span>${f(num(r.dist_pct))}%</span></div>`+
+    `<div class="r"><span>dislocation</span><span>${f(num(r.dist_pctile),0)} %ile</span></div>`+
+    `<div class="r"><span>history below</span><span>${f(num(r.pct_days_below))}%</span></div>`+
+    `<div class="r"><span>prior breaks</span><span>${r.n_breaks ?? '—'}</span></div>`+
+    `<div class="r"><span>days in break</span><span>${r.days_in_break ?? '—'}</span></div>`+
+    `<div class="r"><span>MA slope</span><span>${f(num(r.ma_slope_60d_pct),2)}%</span></div>`;
+  t.style.left=(px*sx)+'px'; t.style.top=(py*sy)+'px'; t.classList.add('on');
+  box.classList.add('dimmed');
+  [...document.querySelectorAll('.dot')].forEach(d=>
+    d.classList.toggle('on',d.dataset.sym===r.symbol));
+}
+function tipOff(){
+  $('tip').classList.remove('on'); $('plotbox').classList.remove('dimmed');
+  [...document.querySelectorAll('.dot')].forEach(d=>d.classList.remove('on'));
+}
+function jump(sym){
+  const row=document.querySelector(`tr[data-sym="${sym}"]`); if(!row) return;
+  row.scrollIntoView({block:'center',behavior:'smooth'});
+  row.classList.add('flash'); setTimeout(()=>row.classList.remove('flash'),900);
+}
+
+/* ---------------- readout ---------------- */
+function readout(){
+  const roll=VIEW.filter(r=>(num(r.ma_slope_60d_pct)??1)<=0).length;
+  const thin=VIEW.filter(r=>(num(r.n_breaks)??0)<5).length;
+  const clean=VIEW.length-roll;
+  $('readout').innerHTML=
+    cell('Below 200 DMA',RAW.length,'')+
+    cell('Match filters',VIEW.length,'')+
+    cell('Trend intact',clean,'rise')+
+    cell('Rolling over',roll,roll?'fall':'')+
+    cell('Thin evidence',thin,thin?'caution':'');
+}
+const cell=(k,v,c)=>`<div class="cell"><span class="k">${k}</span>`+
+  `<span class="v ${c}">${v}</span></div>`;
+
+/* ---------------- table ---------------- */
+function buildHead(){
+  $('thead').innerHTML=COLS.map(c=>
+    `<th data-k="${c.k}" tabindex="0" title="Sort by ${c.t}">${c.t}<span class="ar"></span></th>`
+  ).join('');
+  [...document.querySelectorAll('th')].forEach(th=>{
+    const go=()=>{
+      const k=th.dataset.k;
+      if(sortKey===k) sortAsc=!sortAsc; else {sortKey=k; sortAsc=true;}
+      sortView(); table();
+    };
+    th.addEventListener('click',go);
+    th.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();go()}});
+  });
+}
+function table(){
+  [...document.querySelectorAll('th')].forEach(th=>{
+    const on=th.dataset.k===sortKey;
+    th.classList.toggle('sorted',on);
+    th.querySelector('.ar').textContent=on?(sortAsc?' ↑':' ↓'):'';
+  });
+  $('tcount').textContent=VIEW.length+' name'+(VIEW.length===1?'':'s');
+  $('empty').style.display=VIEW.length?'none':'block';
+  $('tbody').innerHTML=VIEW.map(r=>{
+    const roll=(num(r.ma_slope_60d_pct)??1)<=0, thin=(num(r.n_breaks)??0)<5;
+    return `<tr data-sym="${r.symbol}">`+COLS.map(c=>{
+      const v=num(r[c.k]);
+      if(c.k==='symbol') return `<td><span class="sym">${r.symbol}</span>`+
+        (roll?'<span class="chip roll">ROLLING</span>':'')+
+        (thin?'<span class="chip thin">THIN</span>':'')+`</td>`;
+      if(v===null) return '<td class="mut">—</td>';
+      const cls=c.sign?(v<0?'neg':'pos'):'';
+      return `<td class="${cls}">${c.fmt?c.fmt(v):v}</td>`;
+    }).join('')+'</tr>';
+  }).join('');
+  [...document.querySelectorAll('tbody tr')].forEach(tr=>{
+    tr.addEventListener('mouseenter',()=>{
+      const r=VIEW.find(x=>x.symbol===tr.dataset.sym); if(!r) return;
+      const d=document.querySelector(`.dot[data-sym="${tr.dataset.sym}"]`);
+      if(d){$('plotbox').classList.add('dimmed'); d.classList.add('on');}
+    });
+    tr.addEventListener('mouseleave',tipOff);
+  });
+}
+
+['f-rare','f-pct','f-brk','f-vol'].forEach(id=>$(id).addEventListener('input',apply));
+['f-rise','f-thin'].forEach(id=>$(id).addEventListener('change',apply));
 </script>
 </body>
 </html>
