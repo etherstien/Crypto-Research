@@ -134,6 +134,10 @@ tbody tr.flash td{background:#1c2f45!important;transition:background .35s}
 }
 .chip.roll{background:var(--fall);color:#fff}
 .chip.thin{background:var(--caution);color:#1A1405}
+.chip.t1{background:var(--rise);color:#04150a}
+.chip.t2{background:var(--caution);color:#1A1405}
+.chip.t3{background:#8957e5;color:#fff}
+.chip.t4{background:#30363d;color:var(--dim)}
 .empty{padding:34px 18px;text-align:center;color:var(--dim);font-size:13.5px}
 
 /* ---------- caveats ---------- */
@@ -215,6 +219,11 @@ tbody tr.flash td{background:#1c2f45!important;transition:background .35s}
     <div class="sec-head">
       <h2>Ranked detail</h2>
       <span class="note" id="tcount"></span>
+      <span class="note">· sorted by <b>Buy score</b>: tier gate (intact dip &gt; mild-roll "knife" &gt;
+      deep de-rating &gt; skip) + historical payoff (fwd 60/250d) + rarity + current extremity
+      + slope + evidence. BUY = trend-intact dip; KNIFE = rolling but historically pays,
+      half-size; DEEP = broken trend, speculation only; SKIP = no dislocation yet, thin
+      evidence, or negative payoff history.</span>
     </div>
     <div class="tablescroll">
       <table id="tbl">
@@ -253,6 +262,7 @@ tbody tr.flash td{background:#1c2f45!important;transition:background .35s}
 <script>
 const COLS=[
  {k:'symbol',       t:'Symbol',       fmt:null,             w:'sym'},
+ {k:'buy_score',    t:'Buy score',    fmt:v=>v?.toFixed(0)},
  {k:'price',        t:'Price',        fmt:v=>v?.toFixed(2)},
  {k:'dist_pct',     t:'vs MA %',      fmt:v=>v?.toFixed(1), sign:1},
  {k:'dist_pctile',  t:'Dislocation %ile', fmt:v=>v?.toFixed(1)},
@@ -265,7 +275,35 @@ const COLS=[
  {k:'fwd_250d_median_pct',t:'Fwd 250d %',fmt:v=>v?.toFixed(1),sign:1},
  {k:'med_dollar_vol_musd',t:'$Vol M',  fmt:v=>v?.toFixed(0)},
 ];
-let RAW=[], VIEW=[], sortKey='dist_pctile', sortAsc=true, P={};
+let RAW=[], VIEW=[], sortKey='buy_score', sortAsc=false, P={};
+
+/* Buy score: encodes the ranking method — tier gate first, then payoff,
+   rarity, extremity, slope, evidence. Tiers:
+   1 BUY   intact trend (slope>0), real dislocation, positive payoff history
+   2 KNIFE mild roll (slope>-8) with payoff history that says breaks pay
+   3 DEEP  hard de-rating — speculation only
+   4 SKIP  negative fwd-250d history, no dislocation yet (>-1.5%), or <10 breaks */
+function scoreRow(r){
+  const slope=num(r.ma_slope_60d_pct)??0, f60=num(r.fwd_60d_median_pct)??0,
+        f250=num(r.fwd_250d_median_pct)??0, hist=num(r.pct_days_below)??30,
+        pctile=num(r.dist_pctile)??50, brk=num(r.n_breaks)??0,
+        dist=num(r.dist_pct)??0;
+  let tier;
+  if(f250<0 || dist>-1.5 || brk<10)            tier=4;
+  else if(slope>0)                             tier=1;
+  else if(slope>-8 && f250>=9 && f60>0)        tier=2;
+  else                                         tier=3;
+  let s=[0,300,200,100,0][tier];
+  s+=Math.min(Math.max(f250,0),35);            // payoff, capped so outliers can't dominate
+  s+=Math.max(-15,Math.min(15,f60))*1.5;
+  s+=Math.max(0,30-hist)*1.5;                  // rarity: almost never breaks
+  s+=Math.max(0,30-pctile);                    // extremity: how unusual is NOW
+  s+=Math.min(Math.abs(dist),15)*0.6;          // depth: something real to buy
+  s+=Math.max(-10,Math.min(10,slope))*0.8;
+  s+=Math.min(brk,50)/10;
+  if(brk<20) s-=40;                            // thin-evidence penalty (e.g. NVDA)
+  r.buy_tier=tier; r.buy_score=Math.max(0,Math.round(s));
+}
 
 const $=id=>document.getElementById(id);
 const num=v=>(v===null||v===undefined||Number.isNaN(v))?null:v;
@@ -308,6 +346,7 @@ function apply(){
     (!onlyRise || (num(r.ma_slope_60d_pct)??-1)>0) &&
     (!hideThin || (num(r.n_breaks)??0)>=5)
   );
+  VIEW.forEach(scoreRow);
   sortView(); draw(); table();
 }
 function sortView(){
@@ -481,11 +520,14 @@ function table(){
   $('tcount').textContent=VIEW.length+' name'+(VIEW.length===1?'':'s');
   $('empty').style.display=VIEW.length?'none':'block';
   $('tbody').innerHTML=VIEW.map(r=>{
-    const roll=(num(r.ma_slope_60d_pct)??1)<=0, thin=(num(r.n_breaks)??0)<5;
+    const thin=(num(r.n_breaks)??0)<5;
+    const tierChip={1:'<span class="chip t1">BUY</span>',
+                    2:'<span class="chip t2">KNIFE</span>',
+                    3:'<span class="chip t3">DEEP</span>',
+                    4:'<span class="chip t4">SKIP</span>'}[r.buy_tier]||'';
     return `<tr data-sym="${r.symbol}">`+COLS.map(c=>{
       const v=num(r[c.k]);
-      if(c.k==='symbol') return `<td><span class="sym">${r.symbol}</span>`+
-        (roll?'<span class="chip roll">ROLLING</span>':'')+
+      if(c.k==='symbol') return `<td><span class="sym">${r.symbol}</span>`+tierChip+
         (thin?'<span class="chip thin">THIN</span>':'')+`</td>`;
       if(v===null) return '<td class="mut">—</td>';
       const cls=c.sign?(v<0?'neg':'pos'):'';
