@@ -10,8 +10,10 @@ Q4-2026-low debate, and the historical template window (top + 363-410 days
 
 All data sources are free and keyless:
   - CoinMetrics Community API : price, market cap, realized cap
-                                -> MVRV, NUPL, realized price, 200WMA,
-                                   Mayer Multiple, Pi Cycle Bottom
+                                -> MVRV, NUPL, realized price
+                                (403-blocks GitHub CI runner IPs)
+  - bitcoin-data.com          : MVRV / NUPL / realized price fallback
+                                (BGeometrics free API) when CM is blocked
   - blockchain.info charts    : hash rate (hash ribbons), miner revenue
                                 (Puell Multiple)
   - alternative.me            : Fear & Greed value + sub-25 streak
@@ -143,6 +145,50 @@ def fetch_coinmetrics_latest():
     return None
 
 
+def _bg_last(path):
+    """bitcoin-data.com /v1/<metric>/last -> float, tolerant of field naming
+    ({"d": "...", "unixTs": "...", "nupl": "0.47"} — the metric key varies)."""
+    data = _get_json(f"https://bitcoin-data.com/v1/{path}/last")
+    if isinstance(data, list) and data:
+        data = data[-1]
+    if not isinstance(data, dict):
+        return None
+    for k, v in data.items():
+        if k.lower() in ("d", "date", "unixts", "time", "timestamp"):
+            continue
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def fetch_onchain_metrics():
+    """MVRV / NUPL / realized price with fallback chain:
+    CoinMetrics community API (403s GitHub runners) -> bitcoin-data.com."""
+    cm = fetch_coinmetrics_latest()
+    if cm:
+        mvrv = cm["mcap"] / cm["rcap"]
+        return {"mvrv": mvrv, "nupl": 1 - 1 / mvrv,
+                "realized_price": cm["rcap"] * cm["price"] / cm["mcap"],
+                "source": "coinmetrics"}
+    mvrv = _bg_last("mvrv")
+    nupl = _bg_last("nupl")
+    rp = _bg_last("realized-price")
+    if nupl is not None and abs(nupl) > 1.5:   # served as % instead of fraction
+        nupl /= 100.0
+    if nupl is None and mvrv:
+        nupl = 1 - 1 / mvrv
+    if mvrv is None and nupl is not None and nupl < 1:
+        mvrv = 1 / (1 - nupl)
+    if rp is not None and not (5000 < rp < 500000):   # garbage guard
+        rp = None
+    if mvrv is not None or nupl is not None or rp is not None:
+        return {"mvrv": mvrv, "nupl": nupl, "realized_price": rp,
+                "source": "bitcoin-data.com"}
+    return None
+
+
 def fetch_blockchain_chart(chart, timespan="2years"):
     data = _get_json(f"https://api.blockchain.info/charts/{chart}",
                      params={"timespan": timespan, "format": "json", "cors": "true"})
@@ -227,12 +273,11 @@ def run_monitor():
         return {"error": "Binance price fetch failed — cannot compute signals"}
     price = daily[-1]
 
-    cm = fetch_coinmetrics_latest()
-    if cm:
-        mvrv = cm["mcap"] / cm["rcap"]
-        nupl = 1 - 1 / mvrv
-        realized_price = cm["rcap"] * cm["price"] / cm["mcap"]
-        rp_live = True
+    oc = fetch_onchain_metrics()
+    if oc:
+        mvrv, nupl = oc.get("mvrv"), oc.get("nupl")
+        rp_live = oc.get("realized_price") is not None
+        realized_price = oc["realized_price"] if rp_live else REALIZED_PRICE_FALLBACK
     else:
         mvrv = nupl = None
         realized_price = REALIZED_PRICE_FALLBACK
@@ -365,6 +410,7 @@ def run_monitor():
             "nupl": round(nupl, 3) if nupl is not None else None,
             "realized_price": round(realized_price, 0),
             "realized_price_live": rp_live,
+            "onchain_source": (oc or {}).get("source"),
             "wma200": round(wma200, 0) if wma200 else None,
             "dma200": round(dma200, 0) if dma200 else None,
             "mayer": round(mayer, 3) if mayer else None,
