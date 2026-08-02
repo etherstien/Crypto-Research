@@ -123,11 +123,14 @@
       <span class="mut" id="wl-meta" style="margin-left:.6rem; font-size:.8rem"></span>
     </div>
     <div class="tablewrap"><table>
-      <thead><tr><th>Asset</th><th class="r">Price</th><th class="r">24h</th><th class="r">30d</th><th class="r">ATH DD</th><th>Deploy</th><th></th></tr></thead>
+      <thead><tr><th>Asset</th><th class="r">Rank</th><th class="r">Price</th><th class="r">24h</th><th class="r">30d</th><th class="r">ATH DD</th><th>Deploy</th><th></th></tr></thead>
       <tbody id="wl-rows"></tbody>
     </table></div>
     <div class="foot">Crypto prices load live from CoinGecko on each visit; stock quotes refresh nightly.
       &#9679; HELD = position you hold. Rows sort most-deployable first within each group.
+      <br><strong>Rank</strong> = conviction (what to own): gold #1-15 with scores = Damian's re-ranking of the TDR sheet
+      (hover a rank for the reasoning + TDR's own rank); grey #16+* = Claude's fill-in ranking for everything else.
+      Rank answers "what"; the Deploy tier answers "when".
       <br><strong>Deploy tiers</strong> (crypto only — stocks are ranked on the BlueChip page):
       <span class="pos">BUY</span> = deep discount (&ge;50% off ATH) and basing, not free-falling;
       <span style="color:var(--amber)">KNIFE</span> = deep discount but still falling hard — wait for it to stop;
@@ -239,10 +242,19 @@ async function renderWatchlist() {
     : t === "EXTENDED" ? '<span style="color:#a371f7">&#9675; EXTENDED</span>'
     : '<span class="mut">&#9675; NOT YET</span>';
 
+  const esc = s => String(s || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  function rankCell(r) {
+    if (r.rank == null) return '<span class="mut">—</span>';
+    if (r.auto) return `<span class="mut" title="${esc(r.comment || "Claude fill-in ranking (not on the top-15 sheet)")}">#${r.rank}*</span>`;
+    const tip = esc(r.comment || "") + (r.tdr ? ` [TDR rank #${r.tdr}]` : "");
+    return `<span style="color:var(--amber); font-weight:600" title="${tip}">#${r.rank}</span>` +
+           (r.score != null ? ` <span class="mut" style="font-size:.75em">${r.score.toFixed(1)}</span>` : "");
+  }
+
   const rows = [];
   let priced = 0, total = 0;
   cfg.groups.forEach(g => {
-    rows.push(`<tr><td colspan="7" style="background:#1c2230; color:var(--accent); font-size:.78rem; letter-spacing:.05em; text-transform:uppercase">${g.name}</td></tr>`);
+    rows.push(`<tr><td colspan="8" style="background:#1c2230; color:var(--accent); font-size:.78rem; letter-spacing:.05em; text-transform:uppercase">${g.name}</td></tr>`);
     const scored = g.rows.map(r => {
       const c = r.cg ? cgData[r.cg] : null;
       return {r, c, d: c ? deployScore(c) : null};
@@ -263,6 +275,7 @@ async function renderWatchlist() {
         : `<span class="${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : ""}${v.toFixed(dec)}%</span>`;
       rows.push(`<tr>
         <td><strong>${r.sym}</strong> <span class="mut" style="font-size:.78em">${r.name}</span></td>
+        <td class="r">${rankCell(r)}</td>
         <td class="r">${fmtPx(px)}${src}</td>
         <td class="r">${pct(chg, 2)}</td>
         <td class="r">${pct(d?.c30, 1)}</td>
