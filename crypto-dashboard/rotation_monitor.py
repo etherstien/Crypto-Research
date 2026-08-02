@@ -35,23 +35,29 @@ import json
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import requests
 
 CACHE_PATH = os.path.join(os.path.dirname(__file__), "rotation_cache.json")
 
+# BGeometrics free tier: 8 requests/HOUR per IP (429 past that). The cycle
+# monitor's on-chain fallback uses 3 — this script must stay at ~3 total.
 BG = "https://bitcoin-data.com/v1"
 
 
-def _get_json(url, params=None, timeout=45, retries=2):
+def _get_json(url, params=None, timeout=45, retries=1):
     last_err = None
     for attempt in range(retries + 1):
         try:
             r = requests.get(url, params=params, timeout=timeout,
                              headers={"User-Agent": "Mozilla/5.0 (rotation-monitor)"})
             if r.status_code == 429:
-                time.sleep(10 * (attempt + 1))
+                if attempt == retries:
+                    print(f"  RATE LIMITED (429): {url.split('?')[0]} — free tier is 8 req/hour",
+                          file=sys.stderr)
+                    return None
+                time.sleep(20)
                 continue
             r.raise_for_status()
             return r.json()
@@ -91,16 +97,20 @@ def _parse_row(row):
     return None
 
 
-def fetch_bg_series(paths, days=400):
-    """Try candidate endpoint paths; return newest-last [(date, value)]."""
-    for path in paths:
-        data = _get_json(f"{BG}/{path}")
-        if not isinstance(data, list) or not data:
-            continue
-        rows = [p for p in (_parse_row(r) for r in data) if p]
-        if rows:
-            return rows[-days:]
-    return []
+def fetch_bg_series(path, days=400):
+    """One endpoint, one request (quota!). startday keeps the payload small.
+    Returns newest-last [(date, value)]."""
+    start = (datetime.now(timezone.utc) - timedelta(days=days + 5)).strftime("%Y-%m-%d")
+    data = _get_json(f"{BG}/{path}", params={"startday": start})
+    if isinstance(data, dict):                      # tolerate a wrapper object
+        for k in ("data", "values", "series", "rows"):
+            if isinstance(data.get(k), list):
+                data = data[k]
+                break
+    if not isinstance(data, list) or not data:
+        return []
+    rows = [p for p in (_parse_row(r) for r in data) if p]
+    return rows[-days:]
 
 
 def fetch_okx_oi_series():
@@ -125,12 +135,20 @@ def _delta_pct(series, days):
     return 100 * (new - old) / old if old else None
 
 
+CIRCULATING_FALLBACK = 19.9e6  # BTC, close enough for share-of-supply math
+
+
+def _fmt_supply(v):
+    """Value may arrive as absolute BTC or % of supply — format either."""
+    return f"{v / 1e6:.2f}M BTC" if v > 1e5 else f"{v:.1f}% of supply"
+
+
 def run_monitor():
-    lth = fetch_bg_series(["lth-supply", "long-term-holder-supply"])
-    sth = fetch_bg_series(["sth-supply", "short-term-holder-supply"])
-    profit = fetch_bg_series(["supply-in-profit", "percent-supply-in-profit",
-                              "supply-profit"])
-    sth_rp = fetch_bg_series(["sth-realized-price", "short-term-holder-realized-price"], days=5)
+    # exactly 3 BGeometrics requests — endpoint names verified in the wild:
+    # long-term-hodler-supply-btc (sic, "hodler") and utxo-profit
+    lth = fetch_bg_series("long-term-hodler-supply-btc")
+    sth = fetch_bg_series("short-term-hodler-supply-btc")
+    profit = fetch_bg_series("utxo-profit")
     oi = fetch_okx_oi_series()
 
     rows, metrics = [], {}
@@ -146,7 +164,7 @@ def run_monitor():
                   "FLAT" if (lth_30d or 0) > -0.1 else "DISTRIBUTING")
         rows.append({
             "name": "Long-term holder supply (strong hands)",
-            "value": f"{lth_now / 1e6:.2f}M BTC",
+            "value": _fmt_supply(lth_now),
             "delta": f"{lth_30d:+.2f}% /30d" if lth_30d is not None else "—",
             "status": status, "good": status == "ACCUMULATING",
             "note": "Rising LTH supply = coins rotating INTO strong hands — the precondition for a trustable low",
@@ -160,7 +178,7 @@ def run_monitor():
                   "FLAT" if (sth_30d or 0) < 0.5 else "GROWING")
         rows.append({
             "name": "Short-term holder supply (hot money)",
-            "value": f"{sth_now / 1e6:.2f}M BTC",
+            "value": _fmt_supply(sth_now),
             "delta": f"{sth_30d:+.2f}% /30d" if sth_30d is not None else "—",
             "status": status, "good": status == "BLEEDING OUT",
             "note": "Falling STH supply = top-buyers capitulating out — Nadeau's 'coins changing hands'",
@@ -168,9 +186,17 @@ def run_monitor():
         metrics["sth_supply"] = round(sth_now)
         metrics["sth_30d_pct"] = round(sth_30d, 3) if sth_30d is not None else None
 
-    # LTH share of circulating (LTH + STH ~ circulating by construction)
-    if lth_now and sth_now:
+    # LTH share of circulating (LTH + STH ~ circulating by construction).
+    # Series may already BE a share (%); otherwise derive from absolutes,
+    # falling back to ~19.9M circulating if the STH series is missing.
+    share = None
+    if lth_now is not None and lth_now <= 100:
+        share = lth_now
+    elif lth_now and sth_now and sth_now > 1e5:
         share = 100 * lth_now / (lth_now + sth_now)
+    elif lth_now and lth_now > 1e5:
+        share = 100 * lth_now / CIRCULATING_FALLBACK
+    if share is not None:
         rows.append({
             "name": "LTH share of supply",
             "value": f"{share:.1f}%",
@@ -181,28 +207,23 @@ def run_monitor():
         })
         metrics["lth_share_pct"] = round(share, 2)
 
-    # Supply in profit — capitulation depth
+    # UTXOs in profit — capitulation depth
     if profit:
         p_now = profit[-1][1]
-        # served either as a percent or as raw BTC — normalize to percent
-        if p_now > 100 and lth_now and sth_now:
-            p_now = 100 * p_now / (lth_now + sth_now)
+        # utxo-profit may be a percent already or a raw UTXO count — a raw
+        # count is useless without total UTXOs, so only score a percent
         if 0 < p_now <= 100:
             p_30d = _delta_pct(profit, 30)
             status = ("BOTTOM ZONE" if p_now < 55 else
                       "CLOSE" if p_now < 70 else "NOT THERE")
             rows.append({
-                "name": "Supply in profit",
+                "name": "UTXOs in profit",
                 "value": f"{p_now:.1f}%",
                 "delta": f"{p_30d:+.1f}% /30d" if p_30d is not None else "—",
                 "status": status, "good": status == "BOTTOM ZONE",
-                "note": "2015/2018/2022 lows printed at ~40-55% of supply in profit — deep enough that sellers are exhausted",
+                "note": "2015/2018/2022 lows printed ~40-55% in profit — deep enough that sellers are exhausted",
             })
-            metrics["supply_in_profit_pct"] = round(p_now, 2)
-
-    # Live STH realized price vs the static $69k referee line
-    if sth_rp:
-        metrics["sth_realized_price"] = round(sth_rp[-1][1])
+            metrics["utxo_profit_pct"] = round(p_now, 2)
 
     # Leverage — his first-principles trigger
     if len(oi) > 30:
