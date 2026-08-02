@@ -89,6 +89,39 @@
     </div>
   </div>
 
+  <!-- TDR Pro Watchlist -->
+  <div class="card" id="wl-card" style="display:none; margin-bottom:1rem">
+    <div style="padding:.8rem 1rem; border-bottom:1px solid var(--border)">
+      <strong style="font-size:1rem">TDR Pro Watchlist</strong>
+      <span class="mut" id="wl-meta" style="margin-left:.6rem; font-size:.8rem"></span>
+    </div>
+    <div class="tablewrap"><table id="wl-table">
+      <thead><tr>
+        <th data-key="sym" data-label="Asset">Asset</th>
+        <th class="r" data-key="rank" data-label="Rank">Rank</th>
+        <th class="r" data-key="px" data-label="Price">Price</th>
+        <th class="r" data-key="chg24" data-label="24h">24h</th>
+        <th class="r" data-key="chg30" data-label="30d">30d</th>
+        <th class="r" data-key="dd" data-label="ATH DD">ATH DD</th>
+        <th data-key="deploy" data-label="Deploy">Deploy</th>
+        <th data-key="held" data-label="Held">Held</th>
+      </tr></thead>
+      <tbody id="wl-rows"></tbody>
+    </table></div>
+    <div class="foot">Crypto prices load live from CoinGecko on each visit; stock quotes refresh nightly.
+      &#9679; HELD = position you hold. Click any column header to sort (click again to flip);
+      sorting applies within each group, groups stay in place. Default sort: most-deployable first.
+      <br><strong>Rank</strong> = conviction (what to own): gold #1-15 with scores = Damian's re-ranking of the TDR sheet
+      (hover a rank for the reasoning + TDR's own rank); grey #16+* = Claude's fill-in ranking for everything else.
+      Rank answers "what"; the Deploy tier answers "when".
+      <br><strong>Deploy tiers</strong> (crypto only — stocks are ranked on the BlueChip page):
+      <span class="pos">BUY</span> = deep discount (&ge;50% off ATH) and basing, not free-falling;
+      <span style="color:var(--amber)">KNIFE</span> = deep discount but still falling hard — wait for it to stop;
+      EXTENDED = up &gt;25% in 30d, chasing territory;
+      NOT YET = discount too shallow to pay bear-market prices for.
+      Heuristic ranking, not financial advice — entries still belong at your Pine ladder zones.</div>
+  </div>
+
   <div style="margin:0 0 .8rem; text-align:right">
     <button id="dl-btn" style="display:none; background:#238636; color:#fff; border:0; border-radius:8px; padding:.5rem .9rem; font-size:.82rem; cursor:pointer">
       &#8681; Download TradingView watchlist
@@ -116,28 +149,6 @@
     </div>
   </div>
 
-  <!-- TDR Pro Watchlist -->
-  <div class="card" id="wl-card" style="display:none; margin-top:1rem">
-    <div style="padding:.8rem 1rem; border-bottom:1px solid var(--border)">
-      <strong style="font-size:1rem">TDR Pro Watchlist</strong>
-      <span class="mut" id="wl-meta" style="margin-left:.6rem; font-size:.8rem"></span>
-    </div>
-    <div class="tablewrap"><table>
-      <thead><tr><th>Asset</th><th class="r">Rank</th><th class="r">Price</th><th class="r">24h</th><th class="r">30d</th><th class="r">ATH DD</th><th>Deploy</th><th></th></tr></thead>
-      <tbody id="wl-rows"></tbody>
-    </table></div>
-    <div class="foot">Crypto prices load live from CoinGecko on each visit; stock quotes refresh nightly.
-      &#9679; HELD = position you hold. Rows sort most-deployable first within each group.
-      <br><strong>Rank</strong> = conviction (what to own): gold #1-15 with scores = Damian's re-ranking of the TDR sheet
-      (hover a rank for the reasoning + TDR's own rank); grey #16+* = Claude's fill-in ranking for everything else.
-      Rank answers "what"; the Deploy tier answers "when".
-      <br><strong>Deploy tiers</strong> (crypto only — stocks are ranked on the BlueChip page):
-      <span class="pos">BUY</span> = deep discount (&ge;50% off ATH) and basing, not free-falling;
-      <span style="color:var(--amber)">KNIFE</span> = deep discount but still falling hard — wait for it to stop;
-      EXTENDED = up &gt;25% in 30d, chasing territory;
-      NOT YET = discount too shallow to pay bear-market prices for.
-      Heuristic ranking, not financial advice — entries still belong at your Pine ladder zones.</div>
-  </div>
 </div>
 
 <script>
@@ -251,18 +262,12 @@ async function renderWatchlist() {
            (r.score != null ? ` <span class="mut" style="font-size:.75em">${r.score.toFixed(1)}</span>` : "");
   }
 
-  const rows = [];
-  let priced = 0, total = 0;
-  cfg.groups.forEach(g => {
-    rows.push(`<tr><td colspan="8" style="background:#1c2230; color:var(--accent); font-size:.78rem; letter-spacing:.05em; text-transform:uppercase">${g.name}</td></tr>`);
-    const scored = g.rows.map(r => {
+  // build once; draw() re-sorts on header clicks
+  const groups = cfg.groups.map(g => ({
+    name: g.name,
+    entries: g.rows.map(r => {
       const c = r.cg ? cgData[r.cg] : null;
-      return {r, c, d: c ? deployScore(c) : null};
-    });
-    // most-deployable first; unscored rows (stocks, broken ids) keep order at the bottom
-    scored.sort((a, b) => (b.d?.score ?? -1) - (a.d?.score ?? -1));
-    scored.forEach(({r, c, d}) => {
-      total++;
+      const d = c ? deployScore(c) : null;
       let px = null, chg = null, src = "";
       if (c) {
         px = c.current_price; chg = c.price_change_percentage_24h_in_currency;
@@ -270,26 +275,74 @@ async function renderWatchlist() {
         px = stocks[r.sym].price; chg = stocks[r.sym].chg_pct;
         src = ` <span class="mut" style="font-size:.68em">EOD</span>`;
       }
-      if (px != null) priced++;
-      const pct = (v, dec) => v == null ? '<span class="mut">—</span>'
-        : `<span class="${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : ""}${v.toFixed(dec)}%</span>`;
-      rows.push(`<tr>
-        <td><strong>${r.sym}</strong> <span class="mut" style="font-size:.78em">${r.name}</span></td>
-        <td class="r">${rankCell(r)}</td>
-        <td class="r">${fmtPx(px)}${src}</td>
-        <td class="r">${pct(chg, 2)}</td>
-        <td class="r">${pct(d?.c30, 1)}</td>
-        <td class="r">${d ? `<span class="mut">${d.dd.toFixed(0)}%</span>` : '<span class="mut">—</span>'}</td>
-        <td>${d ? tierChip(d.tier) : '<span class="mut">—</span>'}</td>
-        <td>${r.held ? '<span class="pos" style="font-size:.72em">&#9679; HELD</span>' : ""}</td>
-      </tr>`);
+      return {r, d, px, chg, src};
+    }),
+  }));
+
+  const sortVal = (e, k) =>
+    k === "sym" ? e.r.sym
+    : k === "rank" ? (e.r.rank ?? null)
+    : k === "px" ? e.px
+    : k === "chg24" ? e.chg
+    : k === "chg30" ? (e.d ? e.d.c30 : null)
+    : k === "dd" ? (e.d ? e.d.dd : null)
+    : k === "deploy" ? (e.d ? e.d.score : null)
+    : k === "held" ? (e.r.held ? 1 : 0) : null;
+  // sensible first-click direction per column (second click flips)
+  const defaultDir = {sym: 1, rank: 1, px: -1, chg24: -1, chg30: -1, dd: 1, deploy: -1, held: -1};
+  let sortKey = "deploy", sortDir = -1;
+
+  function draw() {
+    const rows = [];
+    let priced = 0, total = 0;
+    const pct = (v, dec) => v == null ? '<span class="mut">—</span>'
+      : `<span class="${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : ""}${v.toFixed(dec)}%</span>`;
+    groups.forEach(g => {
+      rows.push(`<tr><td colspan="8" style="background:#1c2230; color:var(--accent); font-size:.78rem; letter-spacing:.05em; text-transform:uppercase">${g.name}</td></tr>`);
+      [...g.entries].sort((a, b) => {
+        const va = sortVal(a, sortKey), vb = sortVal(b, sortKey);
+        if (va == null && vb == null) return 0;
+        if (va == null) return 1;                      // nulls always last
+        if (vb == null) return -1;
+        return (va < vb ? -1 : va > vb ? 1 : 0) * sortDir;
+      }).forEach(e => {
+        total++;
+        if (e.px != null) priced++;
+        const {r, d} = e;
+        rows.push(`<tr>
+          <td><strong>${r.sym}</strong> <span class="mut" style="font-size:.78em">${r.name}</span></td>
+          <td class="r">${rankCell(r)}</td>
+          <td class="r">${fmtPx(e.px)}${e.src}</td>
+          <td class="r">${pct(e.chg, 2)}</td>
+          <td class="r">${pct(d?.c30, 1)}</td>
+          <td class="r">${d ? `<span class="mut">${d.dd.toFixed(0)}%</span>` : '<span class="mut">—</span>'}</td>
+          <td>${d ? tierChip(d.tier) : '<span class="mut">—</span>'}</td>
+          <td>${r.held ? '<span class="pos" style="font-size:.72em">&#9679; HELD</span>' : ""}</td>
+        </tr>`);
+      });
+    });
+    document.getElementById("wl-rows").innerHTML = rows.join("");
+    document.getElementById("wl-meta").textContent =
+      `${priced}/${total} priced · crypto live · stocks nightly`;
+    document.querySelectorAll("#wl-table th[data-key]").forEach(th => {
+      th.innerHTML = th.dataset.label +
+        (th.dataset.key === sortKey ? (sortDir === 1 ? " &#9650;" : " &#9660;") : "");
+    });
+  }
+
+  document.querySelectorAll("#wl-table th[data-key]").forEach(th => {
+    th.style.cursor = "pointer";
+    th.title = "Click to sort";
+    th.addEventListener("click", () => {
+      const k = th.dataset.key;
+      if (sortKey === k) sortDir = -sortDir;
+      else { sortKey = k; sortDir = defaultDir[k] || 1; }
+      draw();
     });
   });
 
   document.getElementById("wl-card").style.display = "block";
-  document.getElementById("wl-meta").textContent =
-    `${priced}/${total} priced · crypto live · stocks nightly`;
-  document.getElementById("wl-rows").innerHTML = rows.join("");
+  draw();
 }
 renderWatchlist();
 
