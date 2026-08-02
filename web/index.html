@@ -123,11 +123,17 @@
       <span class="mut" id="wl-meta" style="margin-left:.6rem; font-size:.8rem"></span>
     </div>
     <div class="tablewrap"><table>
-      <thead><tr><th>Asset</th><th class="r">Price</th><th class="r">24h</th><th></th></tr></thead>
+      <thead><tr><th>Asset</th><th class="r">Price</th><th class="r">24h</th><th class="r">30d</th><th class="r">ATH DD</th><th>Deploy</th><th></th></tr></thead>
       <tbody id="wl-rows"></tbody>
     </table></div>
     <div class="foot">Crypto prices load live from CoinGecko on each visit; stock quotes refresh nightly.
-      &#9679; HELD = position you hold. A blank price means the CoinGecko id in watchlist.json needs fixing.</div>
+      &#9679; HELD = position you hold. Rows sort most-deployable first within each group.
+      <br><strong>Deploy tiers</strong> (crypto only — stocks are ranked on the BlueChip page):
+      <span class="pos">BUY</span> = deep discount (&ge;50% off ATH) and basing, not free-falling;
+      <span style="color:var(--amber)">KNIFE</span> = deep discount but still falling hard — wait for it to stop;
+      EXTENDED = up &gt;25% in 30d, chasing territory;
+      NOT YET = discount too shallow to pay bear-market prices for.
+      Heuristic ranking, not financial advice — entries still belong at your Pine ladder zones.</div>
   </div>
 </div>
 
@@ -202,31 +208,66 @@ async function renderWatchlist() {
   cfg.groups.forEach(g => g.rows.forEach(r => { if (r.cg) ids.push(r.cg); }));
   let cgData = {};
   try {
-    const resp = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=" +
-      encodeURIComponent(ids.join(",")) + "&vs_currencies=usd&include_24hr_change=true");
-    if (resp.ok) cgData = await resp.json();
+    const resp = await fetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=250&ids=" +
+      encodeURIComponent(ids.join(",")) + "&price_change_percentage=24h,7d,30d");
+    if (resp.ok) (await resp.json()).forEach(c => { cgData[c.id] = c; });
   } catch {}
+
+  // Deploy tier: is NOW a sane time to start tranches, per the zone-buying
+  // thesis? Deep discount + basing = BUY; deep but free-falling = KNIFE;
+  // pumped 30d = EXTENDED (chasing); shallow discount = NOT YET.
+  function deployScore(c) {
+    const dd = c.ath_change_percentage;                              // negative
+    const c30 = c.price_change_percentage_30d_in_currency;
+    const c7 = c.price_change_percentage_7d_in_currency;
+    if (dd == null || c30 == null) return null;
+    let tier;
+    if (c30 > 25) tier = "EXTENDED";
+    else if (c30 < -30 || (c7 != null && c7 < -12)) tier = "KNIFE";
+    else if (dd <= -50 && c30 <= 10) tier = "BUY";
+    else tier = "NOT YET";
+    const base = {BUY: 300, KNIFE: 200, "NOT YET": 100, EXTENDED: 0}[tier];
+    let s = base + Math.min(-dd, 95);                                // discount depth
+    s += (c30 <= 10 ? 15 : -Math.min(c30, 40));                      // basing bonus / pump penalty
+    if (c7 != null && c7 > -3) s += 10;                              // week is stabilizing
+    if (c30 < -30) s -= 25;                                          // free-fall penalty
+    return {tier, score: s, dd, c30};
+  }
+  const tierChip = t =>
+    t === "BUY" ? '<span class="pos" style="font-weight:600">&#9679; BUY</span>'
+    : t === "KNIFE" ? '<span style="color:var(--amber); font-weight:600">&#9679; KNIFE</span>'
+    : t === "EXTENDED" ? '<span style="color:#a371f7">&#9675; EXTENDED</span>'
+    : '<span class="mut">&#9675; NOT YET</span>';
 
   const rows = [];
   let priced = 0, total = 0;
   cfg.groups.forEach(g => {
-    rows.push(`<tr><td colspan="4" style="background:#1c2230; color:var(--accent); font-size:.78rem; letter-spacing:.05em; text-transform:uppercase">${g.name}</td></tr>`);
-    g.rows.forEach(r => {
+    rows.push(`<tr><td colspan="7" style="background:#1c2230; color:var(--accent); font-size:.78rem; letter-spacing:.05em; text-transform:uppercase">${g.name}</td></tr>`);
+    const scored = g.rows.map(r => {
+      const c = r.cg ? cgData[r.cg] : null;
+      return {r, c, d: c ? deployScore(c) : null};
+    });
+    // most-deployable first; unscored rows (stocks, broken ids) keep order at the bottom
+    scored.sort((a, b) => (b.d?.score ?? -1) - (a.d?.score ?? -1));
+    scored.forEach(({r, c, d}) => {
       total++;
       let px = null, chg = null, src = "";
-      if (r.cg && cgData[r.cg]) {
-        px = cgData[r.cg].usd; chg = cgData[r.cg].usd_24h_change;
+      if (c) {
+        px = c.current_price; chg = c.price_change_percentage_24h_in_currency;
       } else if (r.type === "stock" && stocks[r.sym]) {
         px = stocks[r.sym].price; chg = stocks[r.sym].chg_pct;
         src = ` <span class="mut" style="font-size:.68em">EOD</span>`;
       }
       if (px != null) priced++;
-      const chgHtml = chg == null ? '<span class="mut">—</span>'
-        : `<span class="${chg >= 0 ? "pos" : "neg"}">${chg >= 0 ? "+" : ""}${chg.toFixed(2)}%</span>`;
+      const pct = (v, dec) => v == null ? '<span class="mut">—</span>'
+        : `<span class="${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : ""}${v.toFixed(dec)}%</span>`;
       rows.push(`<tr>
         <td><strong>${r.sym}</strong> <span class="mut" style="font-size:.78em">${r.name}</span></td>
         <td class="r">${fmtPx(px)}${src}</td>
-        <td class="r">${chgHtml}</td>
+        <td class="r">${pct(chg, 2)}</td>
+        <td class="r">${pct(d?.c30, 1)}</td>
+        <td class="r">${d ? `<span class="mut">${d.dd.toFixed(0)}%</span>` : '<span class="mut">—</span>'}</td>
+        <td>${d ? tierChip(d.tier) : '<span class="mut">—</span>'}</td>
         <td>${r.held ? '<span class="pos" style="font-size:.72em">&#9679; HELD</span>' : ""}</td>
       </tr>`);
     });
