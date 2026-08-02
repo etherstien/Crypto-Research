@@ -68,6 +68,27 @@
     </div>
   </div>
 
+  <!-- Coin Rotation Monitor (Nadeau framework) -->
+  <div class="card" id="rot-card" style="display:none; margin-bottom:1rem">
+    <div style="padding:.8rem 1rem; border-bottom:1px solid var(--border)">
+      <strong style="font-size:1rem">Coin Rotation Monitor</strong>
+      <span class="mut" id="rot-meta" style="margin-left:.6rem; font-size:.8rem"></span>
+      <div class="mut" style="margin-top:.4rem; font-size:.8rem">
+        DeFi Report framework: a cycle low is trustable once enough coins have rotated from
+        hot money into strong hands &mdash; and leverage has washed out.
+        Full cost-basis histogram (URPD): <a href="https://charts.checkonchain.com" target="_blank" rel="noopener" style="color:var(--accent,#58a6ff)">checkonchain.com</a>
+        &mdash; watch the $56&ndash;66k band fatten while $84k+ empties.
+      </div>
+      <div id="rot-verdict" class="mut" style="margin-top:.4rem; font-size:.82rem"></div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Rotation condition</th><th class="r">Value</th><th class="r">30d</th><th>Status</th><th>Note</th></tr></thead>
+        <tbody id="rot-rows"></tbody>
+      </table>
+    </div>
+  </div>
+
   <div style="margin:0 0 .8rem; text-align:right">
     <button id="dl-btn" style="display:none; background:#238636; color:#fff; border:0; border-radius:8px; padding:.5rem .9rem; font-size:.82rem; cursor:pointer">
       &#8681; Download TradingView watchlist
@@ -146,6 +167,22 @@ async function renderCycle() {
     `<td class="mut" style="font-size:.76em; white-space:normal">${s.detail}</td></tr>`).join("");
 }
 renderCycle();
+
+async function renderRotation() {
+  const r = await loadJson("rotation.json");
+  if (!r || !(r.rows || []).length) return;
+  document.getElementById("rot-card").style.display = "block";
+  document.getElementById("rot-meta").textContent =
+    `${r.good}/${r.scored} conditions met · updated ${r.generated_at ? new Date(r.generated_at).toUTCString() : "—"}`;
+  document.getElementById("rot-verdict").textContent = r.verdict || "";
+  const chip = row => row.good
+    ? `<span class="pos">&#9679; ${row.status}</span>`
+    : `<span class="mut">&#9675; ${row.status}</span>`;
+  document.getElementById("rot-rows").innerHTML = r.rows.map(row =>
+    `<tr><td>${row.name}</td><td class="r">${row.value}</td><td class="r">${row.delta}</td>` +
+    `<td>${chip(row)}</td><td class="mut" style="font-size:.76em; white-space:normal">${row.note}</td></tr>`).join("");
+}
+renderRotation();
 
 function fmtPx(v) {
   if (v == null || isNaN(v)) return "—";
