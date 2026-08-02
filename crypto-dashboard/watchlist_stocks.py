@@ -19,6 +19,7 @@ CACHE_PATH = os.path.join(os.path.dirname(__file__), "stocks_cache.json")
 STOCKS = {
     "COIN": "coin.us", "CRCL": "crcl.us", "MSFT": "msft.us", "GOOGL": "googl.us",
     "HOOD": "hood.us", "GLXY": "glxy.us", "SPCX": "spcx.us", "ORBS": "orbs.us",
+    "NVDA": "nvda.us",
 }
 
 
