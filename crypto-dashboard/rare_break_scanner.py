@@ -42,65 +42,74 @@ import pandas as pd
 # ----------------------------------------------------------------------------
 # Universe (S&P 500, embedded so the script has no runtime scraping dependency)
 # Yahoo-style tickers: BRK.B -> BRK-B. Refresh occasionally; constituents drift.
+# Last refreshed 2026-08-03 from the Wikipedia constituents table.
 # ----------------------------------------------------------------------------
 SP500 = [
     'A', 'AAPL', 'ABBV', 'ABNB', 'ABT', 'ACGL', 'ACN', 'ADBE', 'ADI', 'ADM',
     'ADP', 'ADSK', 'AEE', 'AEP', 'AES', 'AFL', 'AIG', 'AIZ', 'AJG', 'AKAM',
     'ALB', 'ALGN', 'ALL', 'ALLE', 'AMAT', 'AMCR', 'AMD', 'AME', 'AMGN',
-    'AMP', 'AMT', 'AMZN', 'ANET', 'ANSS', 'AON', 'AOS', 'APA', 'APD', 'APH',
-    'APTV', 'ARE', 'ATO', 'AVB', 'AVGO', 'AVY', 'AWK', 'AXON', 'AXP', 'AZO',
-    'BA', 'BAC', 'BALL', 'BAX', 'BBY', 'BDX', 'BEN', 'BF-B', 'BG', 'BIIB',
-    'BK', 'BKNG', 'BKR', 'BLDR', 'BLK', 'BMY', 'BR', 'BRK-B', 'BRO', 'BSX',
-    'BX', 'BXP', 'C', 'CAG', 'CAH', 'CARR', 'CAT', 'CB', 'CBOE', 'CBRE',
-    'CCI', 'CCL', 'CDNS', 'CDW', 'CE', 'CEG', 'CF', 'CFG', 'CHD', 'CHRW',
-    'CHTR', 'CI', 'CINF', 'CL', 'CLX', 'CMCSA', 'CME', 'CMG', 'CMI', 'CMS',
-    'CNC', 'CNP', 'COF', 'COO', 'COP', 'COR', 'COST', 'CPAY', 'CPB', 'CPRT',
-    'CPT', 'CRL', 'CRM', 'CRWD', 'CSCO', 'CSGP', 'CSX', 'CTAS', 'CTRA',
-    'CTSH', 'CTVA', 'CVS', 'CVX', 'CZR', 'D', 'DAL', 'DAY', 'DD', 'DE',
-    'DECK', 'DELL', 'DG', 'DGX', 'DHI', 'DHR', 'DIS', 'DLR', 'DLTR', 'DOC',
-    'DOV', 'DOW', 'DPZ', 'DRI', 'DTE', 'DUK', 'DVA', 'DVN', 'DXCM', 'EA',
-    'EBAY', 'ECL', 'ED', 'EFX', 'EG', 'EIX', 'EL', 'ELV', 'EMN', 'EMR',
-    'ENPH', 'EOG', 'EPAM', 'EQIX', 'EQR', 'EQT', 'ES', 'ESS', 'ETN', 'ETR',
-    'EVRG', 'EW', 'EXC', 'EXPD', 'EXPE', 'EXR', 'F', 'FANG', 'FAST', 'FCX',
-    'FDS', 'FDX', 'FE', 'FFIV', 'FI', 'FICO', 'FIS', 'FITB', 'FOX', 'FOXA',
-    'FRT', 'FSLR', 'FTNT', 'FTV', 'GD', 'GDDY', 'GE', 'GEHC', 'GEN', 'GEV',
-    'GILD', 'GIS', 'GL', 'GLW', 'GM', 'GNRC', 'GOOG', 'GOOGL', 'GPC', 'GPN',
-    'GRMN', 'GS', 'GWW', 'HAL', 'HAS', 'HBAN', 'HCA', 'HD', 'HES', 'HIG',
-    'HII', 'HLT', 'HOLX', 'HON', 'HPE', 'HPQ', 'HRL', 'HSIC', 'HST', 'HSY',
-    'HUBB', 'HUM', 'HWM', 'IBM', 'ICE', 'IDXX', 'IEX', 'IFF', 'INCY', 'INTC',
-    'INTU', 'INVH', 'IP', 'IPG', 'IQV', 'IR', 'IRM', 'ISRG', 'IT', 'ITW',
-    'IVZ', 'J', 'JBHT', 'JBL', 'JCI', 'JKHY', 'JNJ', 'JNPR', 'JPM', 'K',
-    'KDP', 'KEY', 'KEYS', 'KHC', 'KIM', 'KKR', 'KLAC', 'KMB', 'KMI', 'KMX',
-    'KO', 'KR', 'KVUE', 'L', 'LDOS', 'LEN', 'LH', 'LHX', 'LIN', 'LKQ',
-    'LLY', 'LMT', 'LNT', 'LOW', 'LRCX', 'LULU', 'LUV', 'LVS', 'LW', 'LYB',
-    'LYV', 'MA', 'MAA', 'MAR', 'MAS', 'MCD', 'MCHP', 'MCK', 'MCO', 'MDLZ',
-    'MDT', 'MET', 'META', 'MGM', 'MHK', 'MKC', 'MKTX', 'MLM', 'MMC', 'MMM',
-    'MNST', 'MO', 'MOH', 'MOS', 'MPC', 'MPWR', 'MRK', 'MRNA', 'MS', 'MSCI',
-    'MSFT', 'MSI', 'MTB', 'MTCH', 'MTD', 'MU', 'NCLH', 'NDAQ', 'NDSN',
-    'NEE', 'NEM', 'NFLX', 'NI', 'NKE', 'NOC', 'NOW', 'NRG', 'NSC', 'NTAP',
-    'NTRS', 'NUE', 'NVDA', 'NVR', 'NWS', 'NWSA', 'NXPI', 'O', 'ODFL', 'OKE',
-    'OMC', 'ON', 'ORCL', 'ORLY', 'OTIS', 'OXY', 'PANW', 'PARA', 'PAYC',
+    'AMP', 'AMT', 'AMZN', 'ANET', 'AON', 'AOS', 'APA', 'APD', 'APH', 'APO',
+    'APP', 'APTV', 'ARE', 'ARES', 'ATO', 'AVB', 'AVGO', 'AVY', 'AWK', 'AXON',
+    'AXP', 'AZO', 'BA', 'BAC', 'BALL', 'BAX', 'BBY', 'BDX', 'BEN', 'BF-B',
+    'BG', 'BIIB', 'BKNG', 'BKR', 'BLDR', 'BLK', 'BMY', 'BNY', 'BR', 'BRK-B',
+    'BRO', 'BSX', 'BX', 'BXP', 'C', 'CAH', 'CARR', 'CASY', 'CAT', 'CB',
+    'CBOE', 'CBRE', 'CCI', 'CCL', 'CDNS', 'CDW', 'CEG', 'CF', 'CFG', 'CHD',
+    'CHRW', 'CHTR', 'CI', 'CIEN', 'CINF', 'CL', 'CLX', 'CMCSA', 'CME', 'CMG',
+    'CMI', 'CMS', 'CNC', 'CNP', 'COF', 'COHR', 'COIN', 'COO', 'COP', 'COR',
+    'COST', 'CPAY', 'CPRT', 'CPT', 'CRH', 'CRL', 'CRM', 'CRWD', 'CSCO',
+    'CSGP', 'CSX', 'CTAS', 'CTSH', 'CTVA', 'CVNA', 'CVS', 'CVX', 'D', 'DAL',
+    'DASH', 'DD', 'DDOG', 'DE', 'DECK', 'DELL', 'DG', 'DGX', 'DHI', 'DHR',
+    'DIS', 'DLR', 'DLTR', 'DOC', 'DOV', 'DOW', 'DPZ', 'DRI', 'DTE', 'DUK',
+    'DVA', 'DVN', 'DXCM', 'EA', 'EBAY', 'ECHO', 'ECL', 'ED', 'EFX', 'EG',
+    'EIX', 'EL', 'ELV', 'EME', 'EMR', 'EOG', 'EQIX', 'EQR', 'EQT', 'ERIE',
+    'ES', 'ESS', 'ETN', 'ETR', 'EVRG', 'EW', 'EXC', 'EXE', 'EXPD', 'EXPE',
+    'EXR', 'F', 'FANG', 'FAST', 'FCX', 'FDS', 'FDX', 'FDXF', 'FE', 'FFIV',
+    'FICO', 'FIS', 'FISV', 'FITB', 'FIX', 'FLEX', 'FOX', 'FOXA', 'FRT',
+    'FSLR', 'FTNT', 'FTV', 'GD', 'GDDY', 'GE', 'GEHC', 'GEN', 'GEV', 'GILD',
+    'GIS', 'GL', 'GLW', 'GM', 'GNRC', 'GOOG', 'GOOGL', 'GPC', 'GPN', 'GRMN',
+    'GS', 'GWW', 'HAL', 'HAS', 'HBAN', 'HCA', 'HD', 'HIG', 'HII', 'HLT',
+    'HON', 'HONA', 'HOOD', 'HPE', 'HPQ', 'HRL', 'HSIC', 'HST', 'HSY', 'HUBB',
+    'HUM', 'HWM', 'IBKR', 'IBM', 'ICE', 'IDXX', 'IEX', 'IFF', 'INCY', 'INTC',
+    'INTU', 'INVH', 'IP', 'IQV', 'IR', 'IRM', 'ISRG', 'IT', 'ITW', 'IVZ',
+    'J', 'JBHT', 'JBL', 'JCI', 'JKHY', 'JNJ', 'JPM', 'KDP', 'KEY', 'KEYS',
+    'KHC', 'KIM', 'KKR', 'KLAC', 'KMB', 'KMI', 'KO', 'KR', 'KVUE', 'L',
+    'LDOS', 'LEN', 'LH', 'LHX', 'LII', 'LIN', 'LITE', 'LLY', 'LMT', 'LNT',
+    'LOW', 'LRCX', 'LULU', 'LUV', 'LVS', 'LYB', 'LYV', 'MA', 'MAA', 'MAR',
+    'MAS', 'MCD', 'MCHP', 'MCK', 'MCO', 'MDLZ', 'MDT', 'MET', 'META', 'MGM',
+    'MKC', 'MLM', 'MMM', 'MNST', 'MO', 'MOS', 'MPC', 'MPWR', 'MRK', 'MRNA',
+    'MRSH', 'MRVL', 'MS', 'MSCI', 'MSFT', 'MSI', 'MTB', 'MTD', 'MU', 'NCLH',
+    'NDAQ', 'NDSN', 'NEE', 'NEM', 'NFLX', 'NI', 'NKE', 'NOC', 'NOW', 'NRG',
+    'NSC', 'NTAP', 'NTRS', 'NUE', 'NVDA', 'NVR', 'NWS', 'NWSA', 'NXPI', 'O',
+    'ODFL', 'OKE', 'OMC', 'ON', 'ORCL', 'ORLY', 'OTIS', 'OXY', 'PANW',
     'PAYX', 'PCAR', 'PCG', 'PEG', 'PEP', 'PFE', 'PFG', 'PG', 'PGR', 'PH',
-    'PHM', 'PKG', 'PLD', 'PLTR', 'PM', 'PNC', 'PNR', 'PNW', 'PODD', 'POOL',
-    'PPG', 'PPL', 'PRU', 'PSA', 'PSX', 'PTC', 'PWR', 'PYPL', 'QCOM', 'RCL',
-    'REG', 'REGN', 'RF', 'RJF', 'RL', 'RMD', 'ROK', 'ROL', 'ROP', 'ROST',
-    'RSG', 'RTX', 'RVTY', 'SBAC', 'SBUX', 'SCHW', 'SHW', 'SJM', 'SLB',
-    'SMCI', 'SNA', 'SNPS', 'SO', 'SOLV', 'SPG', 'SPGI', 'SRE', 'STE', 'STLD',
-    'STT', 'STX', 'STZ', 'SW', 'SWK', 'SWKS', 'SYF', 'SYK', 'SYY', 'T',
-    'TAP', 'TDG', 'TDY', 'TECH', 'TEL', 'TER', 'TFC', 'TGT', 'TJX', 'TMO',
-    'TMUS', 'TPL', 'TPR', 'TRGP', 'TRMB', 'TROW', 'TRV', 'TSCO', 'TSLA',
-    'TSN', 'TT', 'TTWO', 'TXN', 'TXT', 'TYL', 'UAL', 'UBER', 'UDR', 'UHS',
-    'ULTA', 'UNH', 'UNP', 'UPS', 'URI', 'USB', 'V', 'VICI', 'VLO', 'VLTO',
-    'VMC', 'VRSK', 'VRSN', 'VRTX', 'VST', 'VTR', 'VTRS', 'VZ', 'WAB', 'WAT',
-    'WBA', 'WBD', 'WDC', 'WEC', 'WELL', 'WFC', 'WM', 'WMB', 'WMT', 'WRB',
-    'WST', 'WTW', 'WY', 'WYNN', 'XEL', 'XOM', 'XYL', 'XYZ', 'YUM', 'ZBH',
-    'ZBRA', 'ZTS'
+    'PHM', 'PKG', 'PLD', 'PLTR', 'PM', 'PNC', 'PNR', 'PNW', 'PODD', 'PPG',
+    'PPL', 'PRU', 'PSA', 'PSKY', 'PSX', 'PTC', 'PWR', 'PYPL', 'Q', 'QCOM',
+    'RCL', 'REG', 'REGN', 'RF', 'RJF', 'RL', 'RMD', 'ROK', 'ROL', 'ROP',
+    'ROST', 'RSG', 'RTX', 'RVTY', 'SBAC', 'SBUX', 'SCHW', 'SHW', 'SJM',
+    'SLB', 'SMCI', 'SNA', 'SNDK', 'SNPS', 'SO', 'SOLV', 'SPG', 'SPGI', 'SRE',
+    'STE', 'STLD', 'STT', 'STX', 'STZ', 'SW', 'SWK', 'SWKS', 'SYF', 'SYK',
+    'SYY', 'T', 'TAP', 'TDG', 'TDY', 'TECH', 'TEL', 'TER', 'TFC', 'TGT',
+    'TJX', 'TKO', 'TMO', 'TMUS', 'TPL', 'TPR', 'TRGP', 'TRMB', 'TROW', 'TRV',
+    'TSCO', 'TSLA', 'TSN', 'TT', 'TTD', 'TTWO', 'TXN', 'TXT', 'TYL', 'UAL',
+    'UBER', 'UDR', 'UHS', 'ULTA', 'UNH', 'UNP', 'UPS', 'URI', 'USB', 'V',
+    'VEEV', 'VICI', 'VLO', 'VLTO', 'VMC', 'VRSK', 'VRSN', 'VRT', 'VRTX',
+    'VST', 'VTR', 'VTRS', 'VZ', 'WAB', 'WAT', 'WBD', 'WDAY', 'WDC', 'WEC',
+    'WELL', 'WFC', 'WM', 'WMB', 'WMT', 'WRB', 'WSM', 'WST', 'WTW', 'WY',
+    'WYNN', 'XEL', 'XOM', 'XYL', 'XYZ', 'YUM', 'ZBH', 'ZBRA', 'ZTS'
 ]
 
 
 # ----------------------------------------------------------------------------
 # Metrics -- pure functions, no I/O, unit-tested by --selftest
 # ----------------------------------------------------------------------------
+
+# 200-week overlay, expressed in trading days (200 x 5). Computed alongside the
+# primary MA as a severity marker: a blue chip below its 200-WEEK average is a
+# once-in-years event. Below a RISING 200-week MA is the strongest form of the
+# dip setup this screen looks for; below a FALLING one is the strongest
+# de-rating warning (the ACN/INTC shape). See caveat 7.
+WK200_LEN = 1000
+
 
 def compute_ma(close: pd.Series, ma_len: int, ma_type: str) -> pd.Series:
     """200-period SMA or EMA. Both masked until ma_len bars exist."""
@@ -189,6 +198,17 @@ def analyze_symbol(close: pd.Series, volume: pd.Series, ma_len: int,
     dv = (close * volume).reindex(c.index).tail(60)
     med_dollar_vol = float(dv.median()) if dv.notna().any() else np.nan
 
+    # 200-week overlay. Needs ~4y of warmup plus 61 bars for a slope, so it is
+    # None/NaN on shorter histories rather than a hard requirement.
+    wk = compute_ma(close, WK200_LEN, 'sma').dropna()
+    if len(wk) > 61:
+        wk_last = float(wk.iloc[-1])
+        below_200w = bool(float(c.iloc[-1]) < wk_last)
+        dist_200w = (float(c.iloc[-1]) / wk_last - 1.0) * 100.0
+        slope_200w = float(wk.iloc[-1] / wk.iloc[-61] - 1.0) * 100.0
+    else:
+        below_200w, dist_200w, slope_200w = None, np.nan, np.nan
+
     row = {
         'price': float(c.iloc[-1]),
         'ma': float(m.iloc[-1]),
@@ -201,6 +221,9 @@ def analyze_symbol(close: pd.Series, volume: pd.Series, ma_len: int,
         'median_break_days': median_break_days,
         'median_break_dd_pct': median_break_dd,
         'ma_slope_60d_pct': slope,
+        'below_200w': below_200w,
+        'dist_200w_pct': dist_200w,
+        'ma200w_slope_60d_pct': slope_200w,
         'years_history': round(n / 252.0, 1),
         'med_dollar_vol_musd': med_dollar_vol / 1e6,
         'fwd_samples': fwd_n,
@@ -292,6 +315,9 @@ def selftest() -> int:
     check(f'pct_days_below low ({r["pct_days_below"]:.1f}%)',
           r['pct_days_below'] < 25)
     check('ma slope positive', r['ma_slope_60d_pct'] > 0)
+    check('above 200-week MA', r['below_200w'] is False)
+    check('200-week slope positive', r['ma200w_slope_60d_pct'] > 0)
+    check('200-week dist positive', r['dist_200w_pct'] > 0)
 
     print('\nFlat random walk (should look "always breaking")')
     flat = pd.Series(100 * np.exp(np.cumsum(
@@ -310,11 +336,16 @@ def selftest() -> int:
           r3['dist_pctile'] < 1.0)
     check('flagged below MA', r3['is_below'] is True)
     check('dist_pct negative', r3['dist_pct'] < 0)
+    check('crash is below 200-week MA too', r3['below_200w'] is True)
+    check('200-week dist negative', r3['dist_200w_pct'] < 0)
 
     print('\nGuards')
     check('short series rejected',
           analyze_symbol(pd.Series(np.ones(50)), pd.Series(np.ones(50)),
                          200, 'sma', [60]) is None)
+    r4 = analyze_symbol(up.iloc[:800], vol.iloc[:800], 200, 'sma', [60])
+    check('200-week overlay None when history too short',
+          r4 is not None and r4['below_200w'] is None)
 
     print(f'\n{"ALL PASSED" if not fails else f"{len(fails)} FAILED: {fails}"}')
     return 1 if fails else 0
@@ -333,7 +364,11 @@ def main() -> int:
     p.add_argument('--ma-len', type=int, default=200)
     p.add_argument('--ma-type', choices=['sma', 'ema'], default='sma')
     p.add_argument('--years', type=int, default=10, help='history to pull')
-    p.add_argument('--max-pct-below', type=float, default=10.0,
+    # Default calibrated against the first live scan (2026-08-03): over a real
+    # 2016-2026 decade -- 2018, 2020, 2022 bears plus the current drawdown --
+    # the RAREST breakers in the S&P 500 sit at 16-25% of days below the 200
+    # DMA. The synthetic-data era default of 10% returns an empty screen.
+    p.add_argument('--max-pct-below', type=float, default=25.0,
                    help='SELECTION gate: max %% of days spent below the MA')
     p.add_argument('--min-years', type=float, default=8.0)
     p.add_argument('--min-dollar-vol', type=float, default=5.0,
@@ -391,6 +426,7 @@ def main() -> int:
     cols = ['symbol', 'qualifies', 'price', 'ma', 'dist_pct', 'dist_pctile',
             'is_below', 'days_in_break', 'pct_days_below', 'n_breaks',
             'median_break_days', 'median_break_dd_pct', 'ma_slope_60d_pct',
+            'below_200w', 'dist_200w_pct', 'ma200w_slope_60d_pct',
             'fwd_samples'] + \
            [c for c in df.columns if c.startswith('fwd_') and c != 'fwd_samples'] + \
            ['years_history', 'med_dollar_vol_musd']
@@ -475,6 +511,15 @@ def main() -> int:
 # 6. Prices are yfinance auto_adjust=True (split- and dividend-adjusted).
 #    Adjusted series change history retroactively after each dividend, so
 #    re-running on an old date will not reproduce old output exactly.
+#
+# 7. THE 200-WEEK OVERLAY (below_200w / dist_200w_pct / ma200w_slope_60d_pct)
+#    IS A SEVERITY MARKER, NOT A SEPARATE SIGNAL. It has no episode statistics
+#    behind it -- no percentile rank, no forward returns. Below a rising
+#    200-week MA is the strongest form of the dip this screen looks for; below
+#    a falling one is the strongest de-rating warning. The first live scan
+#    (2026-08-03) found a quarter of the S&P 500 below its 200-week MA,
+#    concentrated in one sector -- a reminder that this state often means the
+#    market has repriced a story, not marked down a sale.
 #
 # Not investment advice.
 # ----------------------------------------------------------------------------

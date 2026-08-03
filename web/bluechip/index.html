@@ -138,6 +138,8 @@ tbody tr.flash td{background:#1c2f45!important;transition:background .35s}
 .chip.t2{background:var(--caution);color:#1A1405}
 .chip.t3{background:#8957e5;color:#fff}
 .chip.t4{background:#30363d;color:var(--dim)}
+.chip.wku{background:transparent;border:1px solid var(--rise);color:var(--rise);padding:.5px 4.5px}
+.chip.wkd{background:transparent;border:1px solid var(--fall);color:var(--fall);padding:.5px 4.5px}
 .empty{padding:34px 18px;text-align:center;color:var(--dim);font-size:13.5px}
 
 /* ---------- caveats ---------- */
@@ -193,8 +195,8 @@ tbody tr.flash td{background:#1c2f45!important;transition:background .35s}
 
     <div class="controls">
       <div class="ctl">
-        <label for="f-rare">Max share of history below MA <b id="v-rare">10%</b></label>
-        <input type="range" id="f-rare" min="1" max="50" step="1" value="10">
+        <label for="f-rare">Max share of history below MA <b id="v-rare">25%</b></label>
+        <input type="range" id="f-rare" min="1" max="50" step="1" value="25">
       </div>
       <div class="ctl">
         <label for="f-pct">Max dislocation percentile <b id="v-pct">100</b></label>
@@ -225,6 +227,11 @@ tbody tr.flash td{background:#1c2f45!important;transition:background .35s}
       half-size; DEEP = broken trend, speculation only; SKIP = no dislocation yet, thin
       evidence, or negative payoff history.</span>
     </div>
+    <p class="lede">Rows also below their <b>200-week</b> average carry a
+    <span class="chip wku">200W</span> chip — a once-in-years severity marker, separate from the
+    buy score. Green outline: the 200-week trend itself is still rising, the strongest form of
+    the dip setup. Red outline: the 200-week trend is falling too, the strongest de-rating
+    warning.</p>
     <div class="tablescroll">
       <table id="tbl">
         <thead><tr id="thead"></tr></thead>
@@ -254,6 +261,11 @@ tbody tr.flash td{background:#1c2f45!important;transition:background .35s}
       does not settle it.</li>
       <li><b>Prices are split- and dividend-adjusted</b>, so history shifts retroactively after
       each dividend and an old scan will not reproduce exactly.</li>
+      <li><b>The <span class="chip wku">200W</span> chip is a severity marker, not a separate
+      signal.</b> It has no episode statistics behind it — no percentile, no forward returns —
+      and it does not feed the buy score. The first live scan (Aug&nbsp;2026) found a quarter of
+      the index below its 200-week average, concentrated in one sector: that state often means
+      the market has repriced a story, not marked down a sale.</li>
     </ol>
     <p class="foot" id="foot"></p>
   </section>
@@ -271,6 +283,7 @@ const COLS=[
  {k:'days_in_break',t:'Days in break',fmt:v=>v},
  {k:'median_break_dd_pct',t:'Med break DD %',fmt:v=>v?.toFixed(1),sign:1},
  {k:'ma_slope_60d_pct',t:'MA slope 60d %',fmt:v=>v?.toFixed(2),sign:1},
+ {k:'dist_200w_pct',t:'vs 200W %',fmt:v=>v?.toFixed(1),sign:1},
  {k:'fwd_60d_median_pct', t:'Fwd 60d %', fmt:v=>v?.toFixed(1),sign:1},
  {k:'fwd_250d_median_pct',t:'Fwd 250d %',fmt:v=>v?.toFixed(1),sign:1},
  {k:'med_dollar_vol_musd',t:'$Vol M',  fmt:v=>v?.toFixed(0)},
@@ -465,7 +478,8 @@ function tip(r,px,py){
     `<div class="r"><span>history below</span><span>${f(num(r.pct_days_below))}%</span></div>`+
     `<div class="r"><span>prior breaks</span><span>${r.n_breaks ?? '—'}</span></div>`+
     `<div class="r"><span>days in break</span><span>${r.days_in_break ?? '—'}</span></div>`+
-    `<div class="r"><span>MA slope</span><span>${f(num(r.ma_slope_60d_pct),2)}%</span></div>`;
+    `<div class="r"><span>MA slope</span><span>${f(num(r.ma_slope_60d_pct),2)}%</span></div>`+
+    `<div class="r"><span>vs 200 WMA</span><span>${f(num(r.dist_200w_pct))}%</span></div>`;
   t.style.left=(px*sx)+'px'; t.style.top=(py*sy)+'px'; t.classList.add('on');
   box.classList.add('dimmed');
   [...document.querySelectorAll('.dot')].forEach(d=>
@@ -485,13 +499,15 @@ function jump(sym){
 function readout(){
   const roll=VIEW.filter(r=>(num(r.ma_slope_60d_pct)??1)<=0).length;
   const thin=VIEW.filter(r=>(num(r.n_breaks)??0)<5).length;
+  const wk=VIEW.filter(r=>r.below_200w===true).length;
   const clean=VIEW.length-roll;
   $('readout').innerHTML=
     cell('Below 200 DMA',RAW.length,'')+
     cell('Match filters',VIEW.length,'')+
     cell('Trend intact',clean,'rise')+
     cell('Rolling over',roll,roll?'fall':'')+
-    cell('Thin evidence',thin,thin?'caution':'');
+    cell('Thin evidence',thin,thin?'caution':'')+
+    cell('Below 200 wk',wk,wk?'caution':'');
 }
 const cell=(k,v,c)=>`<div class="cell"><span class="k">${k}</span>`+
   `<span class="v ${c}">${v}</span></div>`;
@@ -525,10 +541,12 @@ function table(){
                     2:'<span class="chip t2">KNIFE</span>',
                     3:'<span class="chip t3">DEEP</span>',
                     4:'<span class="chip t4">SKIP</span>'}[r.buy_tier]||'';
+    const wk=r.below_200w===true, wkUp=(num(r.ma200w_slope_60d_pct)??0)>0;
     return `<tr data-sym="${r.symbol}">`+COLS.map(c=>{
       const v=num(r[c.k]);
       if(c.k==='symbol') return `<td><span class="sym">${r.symbol}</span>`+tierChip+
-        (thin?'<span class="chip thin">THIN</span>':'')+`</td>`;
+        (thin?'<span class="chip thin">THIN</span>':'')+
+        (wk?`<span class="chip ${wkUp?'wku':'wkd'}" title="Below its 200-week average; the 200-week trend itself is ${wkUp?'still rising':'falling'}">200W</span>`:'')+`</td>`;
       if(v===null) return '<td class="mut">—</td>';
       const cls=c.sign?(v<0?'neg':'pos'):'';
       return `<td class="${cls}">${c.fmt?c.fmt(v):v}</td>`;
