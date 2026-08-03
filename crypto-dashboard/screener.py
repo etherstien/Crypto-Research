@@ -91,6 +91,10 @@ NARRATIVE_CATEGORIES = [
 
 # Hard-excluded categories: tokenized equities/ETFs track their underlying
 # stock — they cannot 10x from token dynamics and pollute the RWA narrative.
+# Stablecoin categories are here too: STABLE_SYMBOLS only knows the majors,
+# and the $1-pin heuristic misses non-USD pegs (a EUR stable trades ~$1.05-
+# 1.20), which is how EURe/EURCV reached the 2026-08-03 scan. Unknown or
+# renamed slugs are skipped gracefully, same as NARRATIVE_CATEGORIES.
 EXCLUDED_CATEGORIES = [
     "tokenized-stock",
     "tokenized-stocks",
@@ -99,6 +103,13 @@ EXCLUDED_CATEGORIES = [
     "tokenized-treasury-bonds",
     "tokenized-gold",
     "tokenized-commodities",
+    "stablecoins",
+    "eur-stablecoins",
+    "eur-stablecoin",
+    "fiat-backed-stablecoin",
+    "fiat-backed-stablecoins",
+    "crypto-backed-stablecoin",
+    "algorithmic-stablecoins",
 ]
 
 # Commodity/asset wrappers that sometimes escape category tagging
@@ -112,8 +123,16 @@ RS_CLAMP_HI = 300.0
 RS_CLAMP_LO = -95.0
 
 STABLE_SYMBOLS = {
+    # USD
     "usdt", "usdc", "dai", "tusd", "usdp", "gusd", "busd", "frax", "usde",
-    "fdusd", "pyusd", "usdd", "usds", "usd1", "usdx", "eurc", "eurt", "rlusd",
+    "fdusd", "pyusd", "usdd", "usds", "usd1", "usdx", "rlusd",
+    # non-USD fiat — these trade away from $1.00 (EUR ~1.05-1.20 etc.), so
+    # the $1-pin heuristic never catches them; category tagging on CoinGecko
+    # is spotty for the small ones, hence the explicit list
+    "eurc", "eurt", "eure", "eurcv", "euri", "eurs", "eura", "ageur", "ceur",
+    "eurr", "eurq", "veur", "gbpt", "vgbp", "xchf", "vchf", "zchf",
+    "jpyc", "gyen", "cnht", "xsgd", "xidr", "idrt", "bidr", "brz", "cadc",
+    "qcad", "tryb", "mxnt", "audd", "nzds",
 }
 WRAPPED_HINTS = ("wrapped", "staked", "bridged", "restaked", "peg", "binance-peg",
                  "xstock", "tokenized")
@@ -331,6 +350,18 @@ def _is_excluded_asset(coin):
     price = coin.get("current_price") or 0
     chg = abs(coin.get("price_change_percentage_24h") or 0)
     if 0.97 <= price <= 1.03 and chg < 0.3:
+        return True
+    # flatline on every horizon = fiat peg in some other currency. In USD
+    # terms a non-USD stable only shows FX drift (EUR/USD 30d is typically
+    # <±3%, 200d <±10%) — no tradeable altcoin sits this still. Price range
+    # spans real fiat pegs, JPY (~$0.007) to KWD (~$3.3).
+    chg7 = coin.get("price_change_percentage_7d_in_currency")
+    chg30 = coin.get("price_change_percentage_30d_in_currency")
+    chg200 = coin.get("price_change_percentage_200d_in_currency")
+    if (0.004 <= price <= 5.0 and chg < 0.75
+            and chg7 is not None and abs(chg7) < 1.5
+            and chg30 is not None and abs(chg30) < 5.0
+            and (chg200 is None or abs(chg200) < 15.0)):
         return True
     return False
 
