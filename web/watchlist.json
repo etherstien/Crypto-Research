@@ -170,7 +170,7 @@
         {
           "sym": "CC",
           "name": "Canton",
-          "cg": "canton",
+          "cg": "canton-network",
           "held": true,
           "comment": "Institutional-chain story is real but token value capture remains opaque."
         },
