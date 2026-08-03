@@ -109,6 +109,9 @@
       <tbody id="wl-rows"></tbody>
     </table></div>
     <div class="foot">Crypto prices load live from CoinGecko on each visit; stock quotes refresh nightly.
+      Stocks show only price + 24h here (no 30d/DD/Deploy — they're ranked on the BlueChip page).
+      An amber <span style="color:var(--amber)">&#9888; fix id</span> means the row's CoinGecko slug in watchlist.json
+      is wrong — hover it for the bad slug.
       &#9679; HELD = position you hold. Click any column header to sort (click again to flip);
       sorting applies within each group, groups stay in place. Default sort: most-deployable first.
       <br><strong>Rank</strong> = conviction (what to own): gold #1-15 with scores = Damian's re-ranking of the TDR sheet
@@ -309,10 +312,13 @@ async function renderWatchlist() {
         total++;
         if (e.px != null) priced++;
         const {r, d} = e;
+        const pxCell = (e.px == null && r.cg)
+          ? `<span style="color:var(--amber); font-size:.75em" title="CoinGecko returned nothing for id '${r.cg}' — the slug in watchlist.json is wrong. Find the right one in the coin's coingecko.com URL.">&#9888; fix id</span>`
+          : fmtPx(e.px) + e.src;
         rows.push(`<tr>
           <td><strong>${r.sym}</strong> <span class="mut" style="font-size:.78em">${r.name}</span></td>
           <td class="r">${rankCell(r)}</td>
-          <td class="r">${fmtPx(e.px)}${e.src}</td>
+          <td class="r">${pxCell}</td>
           <td class="r">${pct(e.chg, 2)}</td>
           <td class="r">${pct(d?.c30, 1)}</td>
           <td class="r">${d ? `<span class="mut">${d.dd.toFixed(0)}%</span>` : '<span class="mut">—</span>'}</td>
