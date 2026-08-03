@@ -380,6 +380,22 @@ def run_scan():
     else:
         regime, regime_note = "ACCUMULATE", "BTC-dominant / bear regime — build tranche positions in screened names; broad altseason historically needs BTC.D under ~52-54%."
 
+    # Float ratio on the most conservative supply basis. CoinGecko computes
+    # FDV from total_supply, which for continuous-emission tokens (Bittensor
+    # subnets and kin) equals emitted-so-far — so a token with 3/4 of its max
+    # supply still to be emitted reads as a perfect 1.0 float. When
+    # max_supply is declared, price × max_supply is the honest FDV ceiling;
+    # use whichever basis is larger.
+    def fr(c):
+        mcap = c.get("market_cap")
+        if not mcap:
+            return None
+        fdv = c.get("fully_diluted_valuation") or 0
+        price, mx = c.get("current_price"), c.get("max_supply")
+        if price and mx:
+            fdv = max(fdv, price * mx)
+        return (mcap / fdv) if fdv else None
+
     # ── Kill filters ──────────────────────────────────────────────────────
     candidates = []
     for c in markets:
@@ -392,8 +408,7 @@ def run_scan():
         mcap = c.get("market_cap") or 0
         if not (MCAP_MIN <= mcap <= MCAP_MAX):
             continue
-        fdv = c.get("fully_diluted_valuation")
-        float_ratio = (mcap / fdv) if fdv else None
+        float_ratio = fr(c)
         if float_ratio is not None and float_ratio < FLOAT_MIN:
             continue
         vol = c.get("total_volume") or 0
@@ -405,10 +420,6 @@ def run_scan():
         candidates.append(c)
 
     # ── Factor arrays ─────────────────────────────────────────────────────
-    def fr(c):
-        fdv = c.get("fully_diluted_valuation")
-        return (c["market_cap"] / fdv) if fdv else None
-
     float_ratios = [fr(c) for c in candidates]
     rev_yields = []
     for c in candidates:

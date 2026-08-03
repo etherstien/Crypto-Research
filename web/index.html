@@ -151,6 +151,10 @@
       + listing headroom (10) + liquidity (10). Kill filters: mcap $25M&ndash;$2B &middot; float &ge; 35% &middot;
       vol/mcap &ge; 0.5% &middot; no stables, wrapped assets, or tokenized stocks/gold.
       &Delta; = rank change vs previous scan. Rebuilt nightly from CoinGecko, DeFiLlama, and exchange public data.
+      Float is computed against <em>max supply</em> when declared — continuous-emission tokens (e.g. Bittensor
+      subnets) otherwise read as perfect 1.0 floats off CoinGecko's total-supply FDV.
+      <span class="mut" style="border:1px solid #30363d; border-radius:4px; padding:0 4px; font-size:.8em">DATA-THIN</span>
+      = no CEX listing and no revenue coverage — numbers come from thin on-chain liquidity; lower confidence, no TradingView feed.
       <br><strong>Not financial advice.</strong> Base rate: ~10&ndash;15% of alts make a new ATH in the next cycle —
       this list is a research queue, not a buy list.
     </div>
@@ -409,10 +413,13 @@ renderWatchlist();
     }
     const rs = r.chg_30d_vs_btc;
     const narr = (r.narratives || []).map(n => n.split("-")[0]).join(", ");
+    // No CEX feed AND no revenue coverage: every number on the row is read
+    // off thin on-chain liquidity by CoinGecko alone. Flag it.
+    const dataThin = !r.exchange && r.rev_yield_pct == null;
     return `<tr>
       <td class="r mut">${rank}</td>
       <td>${delta}</td>
-      <td><strong>${r.symbol}</strong> <span class="mut" style="font-size:.78em">${r.name ?? ""}</span></td>
+      <td><strong>${r.symbol}</strong>${dataThin ? ' <span class="mut" style="border:1px solid #30363d; border-radius:4px; padding:0 4px; font-size:.68em; letter-spacing:.05em" title="No centralized-exchange listing and no DeFiLlama revenue coverage — price, volume and momentum come from CoinGecko reading thin on-chain liquidity. Treat every number on this row as lower-confidence, and note it cannot be laddered on TradingView.">DATA-THIN</span>' : ''} <span class="mut" style="font-size:.78em">${r.name ?? ""}</span></td>
       <td class="r"><strong>${r.score}</strong></td>
       <td class="r">${fmtMcap(r.mcap)}</td>
       <td class="r">${r.float_ratio != null ? Math.round(r.float_ratio * 100) + "%" : "—"}</td>

@@ -61,6 +61,12 @@ screener pairs with fast alerting (the TradingView tranche dashboards).
 Kill filters (excluded before scoring): mcap outside $25M–$2B · MC/FDV < 35%
 · 24h volume/mcap < 0.5% · stables/wrapped/staked derivatives.
 
+FDV basis (fixed 2026-08-03): float is computed against `max(FDV, price ×
+max_supply)`. CoinGecko derives FDV from *total* supply — emitted-so-far for
+continuous-emission tokens — so Bittensor subnet tokens read as perfect 1.0
+floats while ~3/4 of max supply is still to come (SN53 scored #2 this way;
+against max supply its true float is ~0.24, below the kill filter).
+
 | Factor | Weight | Direction |
 |---|---|---|
 | Float ratio (MC/FDV) | 20 | higher = better (unlock-overhang proxy) |
