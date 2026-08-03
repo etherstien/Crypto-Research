@@ -118,7 +118,11 @@
       (hover a rank for the reasoning + TDR's own rank); grey #16-30* = Claude's fill-in top 15 for names off the sheet.
       Everything below #30 is deliberately unranked. Rank answers "what"; the Deploy tier answers "when".
       <br><strong>Deploy tiers</strong> (crypto only — stocks are ranked on the BlueChip page):
-      <span class="pos">BUY</span> = deep discount (&ge;50% off ATH) and basing, not free-falling;
+      <span class="pos">BUY</span> = deep discount (&ge;50% off ATH), basing, <em>and</em> the BTC cycle
+      monitor above agrees a bottom is plausible (&ge;4/9 signals fired or the bottoming window open);
+      <span style="color:var(--amber)">&#9684; LADDER ONLY</span> = same deep-discount-and-basing setup,
+      but the cycle monitor says it's early — the discount is asset-level evidence, a bottom is a
+      market-level claim, and every name here shares that one factor. First tranche at ladder zones only;
       <span style="color:var(--amber)">KNIFE</span> = deep discount but still falling hard — wait for it to stop;
       EXTENDED = up &gt;25% in 30d, chasing territory;
       NOT YET = discount too shallow to pay bear-market prices for.
@@ -230,9 +234,21 @@ async function renderWatchlist() {
     if (resp.ok) (await resp.json()).forEach(c => { cgData[c.id] = c; });
   } catch {}
 
+  // Cycle gate: deep-discount-and-basing is an ASSET-level read; whether a
+  // bear-market bottom is plausibly in is a MARKET-level one, and every alt
+  // on this list shares that single factor. The BTC cycle monitor already
+  // scores it nightly (cycle.json), so BUY requires its agreement: >=4/9
+  // bottom signals fired OR the bottoming window open. Until then the same
+  // setup renders as LADDER ONLY. Fails open if cycle.json is unavailable.
+  const cyc = await loadJson("cycle.json");
+  const cycFired = cyc?.fired ?? null, cycScored = cyc?.scored ?? 9;
+  const cycInWindow = cyc?.window?.in_window === true;
+  const cycleEarly = cycFired != null && cycFired < 4 && !cycInWindow;
+
   // Deploy tier: is NOW a sane time to start tranches, per the zone-buying
-  // thesis? Deep discount + basing = BUY; deep but free-falling = KNIFE;
-  // pumped 30d = EXTENDED (chasing); shallow discount = NOT YET.
+  // thesis? Deep discount + basing = BUY (cycle permitting); deep but
+  // free-falling = KNIFE; pumped 30d = EXTENDED (chasing); shallow
+  // discount = NOT YET.
   function deployScore(c) {
     const dd = c.ath_change_percentage;                              // negative
     const c30 = c.price_change_percentage_30d_in_currency;
@@ -241,9 +257,9 @@ async function renderWatchlist() {
     let tier;
     if (c30 > 25) tier = "EXTENDED";
     else if (c30 < -30 || (c7 != null && c7 < -12)) tier = "KNIFE";
-    else if (dd <= -50 && c30 <= 10) tier = "BUY";
+    else if (dd <= -50 && c30 <= 10) tier = cycleEarly ? "LADDER" : "BUY";
     else tier = "NOT YET";
-    const base = {BUY: 300, KNIFE: 200, "NOT YET": 100, EXTENDED: 0}[tier];
+    const base = {BUY: 300, LADDER: 250, KNIFE: 200, "NOT YET": 100, EXTENDED: 0}[tier];
     let s = base + Math.min(-dd, 95);                                // discount depth
     s += (c30 <= 10 ? 15 : -Math.min(c30, 40));                      // basing bonus / pump penalty
     if (c7 != null && c7 > -3) s += 10;                              // week is stabilizing
@@ -252,6 +268,7 @@ async function renderWatchlist() {
   }
   const tierChip = t =>
     t === "BUY" ? '<span class="pos" style="font-weight:600">&#9679; BUY</span>'
+    : t === "LADDER" ? `<span style="color:var(--amber); font-weight:600" title="Deep discount and basing — would be BUY — but the BTC cycle monitor has only ${cycFired}/${cycScored} bottom signals fired and the bottoming window hasn't opened. Market-level bottom unconfirmed: first tranche at Pine ladder zones only.">&#9684; LADDER ONLY</span>`
     : t === "KNIFE" ? '<span style="color:var(--amber); font-weight:600">&#9679; KNIFE</span>'
     : t === "EXTENDED" ? '<span style="color:#a371f7">&#9675; EXTENDED</span>'
     : '<span class="mut">&#9675; NOT YET</span>';
