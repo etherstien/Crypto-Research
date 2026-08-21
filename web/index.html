@@ -108,7 +108,8 @@
       </tr></thead>
       <tbody id="wl-rows"></tbody>
     </table></div>
-    <div class="foot">Crypto prices load live from CoinGecko on each visit; stock quotes refresh nightly.
+    <div class="foot">Crypto prices load live from CoinGecko on each visit; stock quotes refresh every 30 minutes
+      during US market hours (and with the nightly scan) — <span id="wl-quote-age">quote time unknown</span>.
       Stocks show only price + 24h here (no 30d/DD/Deploy — they're ranked on the BlueChip page).
       An amber <span style="color:var(--amber)">&#9888; fix id</span> means the row's CoinGecko slug in watchlist.json
       is wrong — hover it for the bad slug.
@@ -297,7 +298,9 @@ async function renderWatchlist() {
         px = c.current_price; chg = c.price_change_percentage_24h_in_currency;
       } else if (r.type === "stock" && stocks[r.sym]) {
         px = stocks[r.sym].price; chg = stocks[r.sym].chg_pct;
-        src = ` <span class="mut" style="font-size:.68em">EOD</span>`;
+        // "live" = Yahoo's regular-market price at fetch time; a date means
+        // the stooq end-of-day fallback was used, so say so.
+        src = stocks[r.sym].date === "live" ? "" : ` <span class="mut" style="font-size:.68em" title="End-of-day close from stooq fallback">EOD</span>`;
       }
       return {r, d, px, chg, src};
     }),
@@ -350,7 +353,13 @@ async function renderWatchlist() {
     });
     document.getElementById("wl-rows").innerHTML = rows.join("");
     document.getElementById("wl-meta").textContent =
-      `${priced}/${total} priced · crypto live · stocks nightly`;
+      `${priced}/${total} priced · crypto live · stocks 30-min in market hours`;
+    const qa = document.getElementById("wl-quote-age");
+    if (qa && stocks._generated_at) {
+      const mins = Math.round((Date.now() - Date.parse(stocks._generated_at)) / 60000);
+      qa.textContent = `stock quotes as of ${new Date(stocks._generated_at).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"})}` +
+        (mins > 90 ? ` (${mins >= 120 ? Math.round(mins / 60) + "h" : mins + "m"} ago — market closed or refresh pending)` : ` (${mins}m ago)`);
+    }
     document.querySelectorAll("#wl-table th[data-key]").forEach(th => {
       th.innerHTML = th.dataset.label +
         (th.dataset.key === sortKey ? (sortDir === 1 ? " &#9650;" : " &#9660;") : "");

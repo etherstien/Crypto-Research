@@ -1,0 +1,61 @@
+name: Stock quotes refresh
+
+# The nightly screener scan refreshes everything once a day (06:20 UTC), so
+# the watchlist's stock rows showed midnight prices through sessions where
+# the names moved 5-10%. Crypto rows are live client-side (CoinGecko); stocks
+# have no free CORS API, so this lightweight job re-fetches ONLY the stock
+# quotes every 30 minutes during US market hours and commits web/stocks.json.
+# It takes ~20 seconds; the full nightly scan is untouched.
+on:
+  schedule:
+    # :00 and :30, 13:00-21:30 UTC, Mon-Fri = covers 9:30-16:00 ET under both
+    # EDT (13:30-20:00 UTC) and EST (14:30-21:00 UTC), plus a little slop.
+    - cron: "0,30 13-21 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Same group as the nightly scan: both commit to main, so queue rather than
+# race on the push.
+concurrency:
+  group: screener-scan
+  cancel-in-progress: false
+
+jobs:
+  quotes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: pip install requests
+
+      - name: Fetch stock quotes
+        run: |
+          # The script exits non-zero (without writing) if nothing was
+          # fetched, so a Yahoo/stooq outage never blanks the site's quotes.
+          python crypto-dashboard/watchlist_stocks.py
+          python - <<'PY'
+          import json, sys
+          d = json.load(open('crypto-dashboard/stocks_cache.json'))
+          n = sum(1 for k in d if not k.startswith('_'))
+          print(f"{n} quotes in cache")
+          if n < 3:
+              sys.exit("too few quotes - keeping previous stocks.json")
+          PY
+          cp crypto-dashboard/stocks_cache.json web/stocks.json
+
+      - name: Commit if changed
+        run: |
+          git config user.name  "screener-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add web/stocks.json
+          git diff --staged --quiet && echo "No change" || git commit -m "Stock quotes refresh"
+          git pull --rebase origin main
+          git push

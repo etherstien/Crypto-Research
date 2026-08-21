@@ -1,9 +1,13 @@
 """
-Nightly stock quotes for the website watchlist (crypto is fetched live in
-the browser via CoinGecko; stocks have no free CORS API, so the workflow
-pulls them from stooq.com's free CSV endpoint instead).
+Stock quotes for the website watchlist (crypto is fetched live in the
+browser via CoinGecko; stocks have no free CORS API, so a workflow pulls
+them server-side: Yahoo's keyless chart endpoint, stooq CSV as fallback).
 
-Writes stocks_cache.json: {SYM: {price, chg_pct, date}}.
+Runs in the nightly screener scan AND in the stock-quotes workflow every
+30 minutes during US market hours (.github/workflows/stocks.yml) -- a
+once-a-day quote left rows showing midnight prices through 5-10% sessions.
+
+Writes stocks_cache.json: {"_generated_at": iso, SYM: {price, chg_pct, date}}.
 """
 
 import csv
@@ -11,16 +15,36 @@ import io
 import json
 import os
 import sys
+import time
 
 import requests
 
-CACHE_PATH = os.path.join(os.path.dirname(__file__), "stocks_cache.json")
+HERE = os.path.dirname(__file__)
+CACHE_PATH = os.path.join(HERE, "stocks_cache.json")
+WATCHLIST_PATH = os.path.join(HERE, "..", "web", "watchlist.json")
 
+# Fallback list; the live list is every type=stock row in web/watchlist.json
+# so adding a stock to the site automatically gets it quoted.
 STOCKS = {
     "COIN": "coin.us", "CRCL": "crcl.us", "MSFT": "msft.us", "GOOGL": "googl.us",
     "HOOD": "hood.us", "GLXY": "glxy.us", "SPCX": "spcx.us", "ORBS": "orbs.us",
     "NVDA": "nvda.us",
 }
+
+
+def watchlist_stocks():
+    """{SYM: stooq_sym} for every stock row on the site, plus the fallbacks."""
+    syms = dict(STOCKS)
+    try:
+        with open(WATCHLIST_PATH) as f:
+            cfg = json.load(f)
+        for g in cfg.get("groups", []):
+            for r in g.get("rows", []):
+                if r.get("type") == "stock" and r.get("sym"):
+                    syms.setdefault(r["sym"].upper(), f"{r['sym'].lower()}.us")
+    except Exception as e:  # noqa: BLE001
+        print(f"  watchlist.json not read ({e}); using built-in list")
+    return syms
 
 
 def fetch_yahoo(sym):
@@ -70,15 +94,22 @@ def fetch_stock(sym, stooq_sym):
 
 
 def main():
-    out = {}
-    for sym, stooq_sym in STOCKS.items():
+    stocks = watchlist_stocks()
+    out = {"_generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    n = 0
+    for sym, stooq_sym in stocks.items():
         q = fetch_stock(sym, stooq_sym)
         if q:
             out[sym] = q
+            n += 1
             print(f"  {sym}: ${q['price']} ({q['chg_pct']}%)")
+    if n == 0:
+        # Don't write an empty cache over a good one; let the workflow keep
+        # the previous stocks.json.
+        sys.exit("no stock quotes fetched; cache left untouched")
     with open(CACHE_PATH, "w") as f:
         json.dump(out, f)
-    print(f"{len(out)}/{len(STOCKS)} stocks fetched -> {CACHE_PATH}")
+    print(f"{n}/{len(stocks)} stocks fetched -> {CACHE_PATH}")
 
 
 if __name__ == "__main__":
