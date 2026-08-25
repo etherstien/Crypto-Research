@@ -55,14 +55,19 @@
   <!-- BTC Cycle Monitor -->
   <div class="card" id="cycle-card" style="display:none; margin-bottom:1rem">
     <div style="padding:.8rem 1rem; border-bottom:1px solid var(--border)">
-      <strong style="font-size:1rem">BTC Cycle Monitor</strong>
+      <strong style="font-size:1rem">BTC Cycle Monitor &mdash; watching for THE LOW</strong>
       <span class="mut" id="cycle-meta" style="margin-left:.6rem; font-size:.8rem"></span>
+      <div class="mut" style="margin-top:.4rem; font-size:.8rem">
+        Section 1 of 2 &mdash; the <em>downside</em> watch: every signal here fires as price falls
+        toward a capitulation low. Zero fired means no capitulation evidence, not "no signal".
+        The recovery watch is the Upside Gates card below.
+      </div>
       <div id="cycle-referee" style="margin-top:.5rem; font-size:.84rem; line-height:1.6"></div>
       <div id="cycle-verdict" class="mut" style="margin-top:.4rem; font-size:.82rem"></div>
     </div>
     <div class="tablewrap">
       <table>
-        <thead><tr><th>Bottom signal (fired at 2015/2018/2022 lows)</th><th class="r">Value</th><th>Status</th><th>Note</th></tr></thead>
+        <thead><tr><th>Capitulation signal &mdash; fires as price falls (marked the 2015/2018/2022 lows)</th><th class="r">Value</th><th>Status</th><th>Note</th></tr></thead>
         <tbody id="cycle-rows"></tbody>
       </table>
     </div>
@@ -71,15 +76,16 @@
   <!-- Upside Gates — the get-IN half of the model -->
   <div class="card" id="gates-card" style="display:none; margin-bottom:1rem">
     <div style="padding:.8rem 1rem; border-bottom:1px solid var(--border)">
-      <strong style="font-size:1rem">Upside Gates &mdash; is the low in?</strong>
+      <strong style="font-size:1rem">Upside Gates &mdash; watching for THE TURN</strong>
       <span class="mut" id="gates-meta" style="margin-left:.6rem; font-size:.8rem"></span>
       <div class="mut" style="margin-top:.4rem; font-size:.8rem">
-        The bottom checklist above only fires if price goes <em>lower</em> &mdash; in a V-recovery it
-        waits forever. These four gates are the other half: proof that spot demand has replaced
-        short-covering as the market's source of momentum. All four close &rarr; flip: the low is in,
-        deploy at market, re-anchor the ladder off the new range and let the unfilled zones go.
-        Kill switches: weekly close &lt; $72k, or funding spiking with price flat.
-        Recomputed every 6 hours (00/06/12/18 UTC) with live distances in every note.
+        Section 2 of 2 &mdash; the <em>upside</em> watch. The checklist above only fires if price goes
+        lower; in a V-recovery it waits forever. These four gates are the other half: proof that
+        spot demand has replaced short-covering as the market's source of momentum. All four close
+        &rarr; flip: the low is in, deploy at market, re-anchor the ladder off the new range and let
+        the unfilled zones go. Kill switches: weekly close &lt; $72k, or funding spiking with price
+        flat. Turn-side reads that aren't scored gates (spot ETF daily flows) appear below the gates
+        as supporting rows. Recomputed every 6 hours (00/06/12/18 UTC) with live distances in every note.
       </div>
       <div id="gates-verdict" style="margin-top:.4rem; font-size:.82rem"></div>
     </div>
@@ -235,8 +241,15 @@ async function renderCycle() {
       : s === "KILLED" ? '<span class="neg" style="font-weight:600">&#9679; KILLED</span>'
       : s === "PENDING" ? '<span class="mut">&#9675; pending</span>'
       : '<span style="color:var(--amber)">&#9675; open</span>';
+    const schip = s => s === "POSITIVE"
+      ? '<span class="pos" style="border:1px solid currentColor; border-radius:4px; padding:0 5px; font-size:.85em">&#9650; positive</span>'
+      : '<span class="neg" style="border:1px solid currentColor; border-radius:4px; padding:0 5px; font-size:.85em">&#9660; negative</span>';
     document.getElementById("gates-rows").innerHTML = g.gates.map(s =>
       `<tr><td>${s.name}</td><td class="r" style="font-size:.8em">${s.value}</td><td>${gchip(s.status)}</td>` +
+      `<td class="mut" style="font-size:.76em; white-space:normal">${s.detail}</td></tr>`).join("") +
+      (g.supporting || []).map(s =>
+      `<tr><td class="mut">${s.name} <span style="font-size:.68em; border:1px solid #30363d; border-radius:4px; padding:0 4px; letter-spacing:.05em">SUPPORTING</span></td>` +
+      `<td class="r" style="font-size:.8em">${s.value}</td><td>${schip(s.status)}</td>` +
       `<td class="mut" style="font-size:.76em; white-space:normal">${s.detail}</td></tr>`).join("");
   }
 }

@@ -450,8 +450,23 @@ def evaluate_gates(daily, weekly, funding_rates, etf_flows):
                    + (f" Starter condition met ({consec} weekly closes > 50W EMA): the 10-15% "
                       "pre-commitment tranche is armed." if starter else ""))
 
+    # Supporting turn-signals: not scored, not gates — context that belongs on
+    # the recovery side of the page rather than in the capitulation checklist.
+    supporting = []
+    last5 = (etf_flows or [])[-5:]
+    if last5:
+        net5 = sum(f["net_usd_m"] for f in last5)
+        supporting.append(_sig("etf5", "Spot ETF flows (last 5 sessions)",
+                               f"{net5:+,.0f}M USD",
+                               "POSITIVE" if net5 > 0 else "NEGATIVE",
+                               "Daily-resolution demand read — a turn signal, not a bottom "
+                               "signal, which is why it lives on this side of the page. Inflow "
+                               "resumption marked prior local lows; the scored weekly regime "
+                               "version is Gate 2 above."))
+
     return {
         "gates": gates, "closed": n_closed, "all_closed": all_closed,
+        "supporting": supporting,
         "killed": killed, "early_warning": early_warning, "starter": starter,
         "ema50w": round(ema50w, 0) if ema50w else None,
         "weeks_above_50w": consec,
@@ -592,13 +607,11 @@ def run_monitor():
                             "FIRED" if funding < 0 else ("CLOSE" if funding < 3 else "NOT_FIRED"),
                             f"Longs paying {funding:+.1f}% ann. now; fires below zero. The 46-day "
                             "negative streak into Apr 2026 was the leverage washout"))
-    if etf5:
-        recent = sum(f["net_usd_m"] for f in etf5)
-        signals.append(_sig("etf", "Spot ETF flows (last 5 sessions)",
-                            f"{recent:+,.0f}M USD",
-                            "FIRED" if recent > 0 else "NOT_FIRED",
-                            f"{'Net inflow' if recent > 0 else 'Net outflow'} this week; the weekly "
-                            "regime version is Gate 2 in the Upside Gates card"))
+    # NOTE: spot ETF flows are deliberately NOT in this checklist. Inflow
+    # resumption is a TURN signal, not a capitulation signal — it renders as
+    # a supporting row in the Upside Gates card (and its scored weekly
+    # version is Gate 2). Mixing it in here made the fired-count read like
+    # bottom evidence when it was actually recovery evidence.
 
     scored = [s for s in signals if s["status"] != "NA"]
     fired = sum(1 for s in scored if s["status"] == "FIRED")
@@ -608,7 +621,7 @@ def run_monitor():
     we = datetime.strptime(WINDOW_END, "%Y-%m-%d").date()
     in_window = ws <= today <= we
 
-    behavioral = {"ribbons", "fng", "funding", "etf", "wma200"}
+    behavioral = {"ribbons", "fng", "funding", "wma200"}
     beh_fired = sum(1 for s in scored if s["key"] in behavioral and s["status"] == "FIRED")
     val_fired = sum(1 for s in scored if s["key"] not in behavioral and s["status"] == "FIRED")
     verdict = (f"{fired}/{len(scored)} signals fired — "
@@ -701,5 +714,7 @@ if __name__ == "__main__":
         print("-" * 76)
         for s in g["gates"]:
             print(f"{s['name']:<34} {s['status']:>8}  {s['value']}")
+        for s in g.get("supporting", []):
+            print(f"{s['name']:<34} {s['status']:>8}  {s['value']}  [supporting]")
         print(f"\n{g['verdict']}")
     print(f"\nCache written to {CACHE_PATH}")
