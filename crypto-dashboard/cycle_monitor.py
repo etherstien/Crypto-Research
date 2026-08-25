@@ -72,7 +72,11 @@ G1_CLOSES_NEEDED = 3            # 2022 managed exactly 2 closes above; 3 has no 
 G1_SUPPLY_SHELF = 84500.0       # low-$80s overhead supply; weekly close above = sellers absorbed
 G2_ETF_WEEKLY_USD_M = 1000.0    # ETF net inflows >= $1B/week...
 G2_ETF_WEEKS_NEEDED = 3         # ...for 3 consecutive completed weeks (regime, not spike)
-G2_FUNDING_FLAT_MAX = 5.0       # ann. %; under this while price holds = spot-led, not re-levered
+# Perp funding sits at ~+0.01%/8h (~11% ann.) when longs/shorts are BALANCED —
+# that baseline is what "flat" means. Spot-led = at/below baseline while price
+# holds; re-levered shows as 20%+ ann. (Recalibrated 2026-08-26 from 5.0,
+# which was stricter than neutral and near-unpassable in a rising market.)
+G2_FUNDING_FLAT_MAX = 12.0
 G3_EVENTS = [                   # (date, name, floor BTC must hold after it)
     ("2026-08-28", "PCE print", 75000.0),
     ("2026-09-16", "FOMC decision", 70000.0),
@@ -80,7 +84,7 @@ G3_EVENTS = [                   # (date, name, floor BTC must hold after it)
 G4_HOLD_LINE = 75000.0          # still above this at the deadline = bears out of window
 G4_DEADLINE = "2026-09-30"      # Q4-flush window (Cowen/Brandt/Martinez cluster early-mid Oct)
 KILL_WEEKLY_CLOSE = 72000.0     # weekly close below = Gate 1 dead, lower zones live again
-KILL_FUNDING_ANN = 10.0         # funding above this with price flat = re-levered, not demand
+KILL_FUNDING_ANN = 20.0         # ~2x neutral with price flat = re-levered, not demand
 
 
 def _get(url, params=None, timeout=30, retries=2, headers=None):
@@ -378,8 +382,9 @@ def evaluate_gates(daily, weekly, funding_rates, etf_flows):
               if funding_14d is not None else f"ETF wks {wk_txt} · funding n/a",
               "KILLED" if g2_killed else ("CLOSED" if g2_ok else "OPEN"),
               f"Need {G2_ETF_WEEKS_NEEDED} straight completed weeks >= ${G2_ETF_WEEKLY_USD_M:,.0f}M "
-              f"(now {etf_consec}) AND 14d funding under {G2_FUNDING_FLAT_MAX:.0f}% ann. while price "
-              f"holds (spot-led, not re-levered). CryptoQuant spot+futures demand staying positive "
+              f"(now {etf_consec}) AND 14d funding under {G2_FUNDING_FLAT_MAX:.0f}% ann. — i.e. at/below "
+              f"the ~11% neutral baseline — while price holds (spot-led, not re-levered). "
+              f"CryptoQuant spot+futures demand staying positive "
               f"through late Sep is the manual third check — no free feed. Funding spiking with "
               f"price flat kills it.")
 
@@ -479,6 +484,13 @@ def run_monitor():
         mvrv = nupl = None
         realized_price = REALIZED_PRICE_FALLBACK
         rp_live = False
+
+    # Short-term-holder cost basis (the reclaim line) fetched live so it
+    # tracks the cohort as the rally ages; static constant as fallback.
+    sth_live = _bg_last("sth-realized-price")
+    if sth_live is not None and not (5000 < sth_live < 500000):
+        sth_live = None
+    sth = sth_live if sth_live is not None else STH_REALIZED_PRICE
 
     wma200 = _sma(weekly, 200)
     dma200 = _sma(daily, 200)
@@ -604,15 +616,16 @@ def run_monitor():
                + ("INSIDE the Oct 4 - Nov 20 template window: valuation signals firing now = maximum-deployment zone."
                   if in_window else
                   f"Template window opens {WINDOW_START} ({(ws - today).days} days). "
-                  "Reclaim of the $69k line before then favors 'bottom already in'; "
-                  "a close below realized price favors the Q4 capitulation path."))
+                  f"Reclaim of the ${sth / 1000:.0f}k STH cost-basis line before then favors "
+                  "'bottom already in'; a close below realized price favors the Q4 capitulation path."))
 
     result = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "price": round(price, 0),
         "referee": {
-            "reclaim_line": STH_REALIZED_PRICE,
-            "reclaim_distance_pct": round(100 * (STH_REALIZED_PRICE - price) / price, 1),
+            "reclaim_line": round(sth, 0),
+            "reclaim_line_live": sth_live is not None,
+            "reclaim_distance_pct": round(100 * (sth - price) / price, 1),
             "capitulation_line": round(realized_price, 0),
             "capitulation_distance_pct": round(100 * (price - realized_price) / price, 1),
             "lth_floor": LTH_REALIZED_PRICE,

@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  issues: write     # state-change alerts are filed as issues (GitHub emails them)
 
 # Same group as the nightly scan and the stock-quotes job: everything that
 # commits to main queues instead of racing on the push.
@@ -40,6 +41,26 @@ jobs:
           cp web/cycle.json web/cycle_prev.json 2>/dev/null || true
           python crypto-dashboard/cycle_monitor.py
           cp crypto-dashboard/cycle_cache.json web/cycle.json
+
+      - name: Alert on state changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+        run: |
+          # Compares the pre-refresh snapshot (cycle_prev.json) against the
+          # fresh one. Any signal firing/un-firing or gate transition files a
+          # GitHub issue (GitHub emails repo watchers) and, if NTFY_TOPIC is
+          # set, an ntfy push — with direct email too when ALERT_EMAIL is set.
+          python crypto-dashboard/cycle_alerts.py web/cycle_prev.json web/cycle.json alert.md || true
+          if [ -s alert.md ]; then
+            title=$(head -n 1 alert.md)
+            gh issue create --title "$title" --body-file alert.md || echo "issue create failed (non-fatal)"
+            if [ -n "$NTFY_TOPIC" ]; then
+              curl -s -H "Title: $title" ${ALERT_EMAIL:+-H "Email: $ALERT_EMAIL"} \
+                --data-binary @alert.md "https://ntfy.sh/$NTFY_TOPIC" || true
+            fi
+          fi
 
       - name: Commit if changed
         run: |

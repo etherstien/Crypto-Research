@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  issues: write     # cycle state-change alerts are filed as issues (GitHub emails them)
 
 # Queue runs instead of overlapping — two simultaneous runs race on the
 # final data-commit push and the loser fails with a non-fast-forward error
@@ -46,6 +47,24 @@ jobs:
           cp web/cycle.json web/cycle_prev.json 2>/dev/null || true
           python crypto-dashboard/cycle_monitor.py || echo "cycle monitor failed - keeping previous cycle.json"
           [ -f crypto-dashboard/cycle_cache.json ] && cp crypto-dashboard/cycle_cache.json web/cycle.json || true
+
+      - name: Alert on cycle state changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+        run: |
+          # Same detector as the 6-hourly cycle workflow: signal fired or
+          # un-fired, gate transitioned -> GitHub issue + optional ntfy.
+          python crypto-dashboard/cycle_alerts.py web/cycle_prev.json web/cycle.json alert.md || true
+          if [ -s alert.md ]; then
+            title=$(head -n 1 alert.md)
+            gh issue create --title "$title" --body-file alert.md || echo "issue create failed (non-fatal)"
+            if [ -n "$NTFY_TOPIC" ]; then
+              curl -s -H "Title: $title" ${ALERT_EMAIL:+-H "Email: $ALERT_EMAIL"} \
+                --data-binary @alert.md "https://ntfy.sh/$NTFY_TOPIC" || true
+            fi
+          fi
 
       - name: Run coin rotation monitor
         run: |
