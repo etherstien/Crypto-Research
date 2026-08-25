@@ -301,6 +301,50 @@ def fetch_etf_flows(sessions=30):
         return None
 
 
+def fetch_open_interest_7d(daily):
+    """7d % change in BTC-denominated futures open interest.
+    Binance OI history first (451-blocked from some IPs); OKX rubik fallback,
+    whose USD-denominated OI is de-priced against the 7d price change so a
+    price move alone doesn't read as a positioning change.
+    Returns (pct_change, source) or (None, None)."""
+    data = _get_json("https://fapi.binance.com/futures/data/openInterestHist",
+                     params={"symbol": "BTCUSDT", "period": "1d", "limit": 10})
+    if isinstance(data, list) and len(data) >= 8:
+        try:
+            vals = [float(r["sumOpenInterest"]) for r in data]
+            return (vals[-1] / vals[-8] - 1) * 100, "binance"
+        except (KeyError, TypeError, ValueError, ZeroDivisionError):
+            pass
+    data = _get_json("https://www.okx.com/api/v5/rubik/stat/contracts/open-interest-volume",
+                     params={"ccy": "BTC", "period": "1D"})
+    rows = (data or {}).get("data", [])
+    try:
+        rows = sorted(rows, key=lambda r: int(r[0]))          # oldest first
+        oi_usd = [float(r[1]) for r in rows]
+        if len(oi_usd) >= 8 and len(daily) >= 8 and oi_usd[-8] and daily[-8]:
+            usd_chg = oi_usd[-1] / oi_usd[-8] - 1
+            px_chg = daily[-1] / daily[-8] - 1
+            return ((1 + usd_chg) / (1 + px_chg) - 1) * 100, "okx"
+    except (TypeError, ValueError, IndexError, ZeroDivisionError):
+        pass
+    return None, None
+
+
+def fetch_coinbase_premium():
+    """Coinbase BTC-USD vs Binance BTC-USDT spot, in %. The classic detector
+    of a US institutional/whale bid: big US buyers execute on Coinbase, and a
+    persistent positive premium during a rally separates institutional spot
+    accumulation from offshore perp-driven moves. Snapshot, so noisy — read
+    the sign, not the second decimal. (USDT/USD drift adds ~±0.1% noise.)"""
+    cb = _get_json("https://api.exchange.coinbase.com/products/BTC-USD/ticker")
+    bn = _get_json("https://data-api.binance.vision/api/v3/ticker/price",
+                   params={"symbol": "BTCUSDT"})
+    try:
+        return round((float(cb["price"]) / float(bn["price"]) - 1) * 100, 3)
+    except (KeyError, TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
 def _etf_weekly_sums(flows):
     """Completed calendar weeks only, oldest first: [(iso_week_label, sum_usd_m)]."""
     if not flows:
@@ -332,7 +376,8 @@ def _sig(key, name, value, status, detail):
 # Upside gates — the "you'd better get in" half of the model
 # ---------------------------------------------------------------------------
 
-def evaluate_gates(daily, weekly, funding_rates, etf_flows):
+def evaluate_gates(daily, weekly, funding_rates, etf_flows,
+                   oi_7d=None, oi_src=None, premium=None):
     """The four upside-confirmation gates. Statuses: CLOSED (condition met),
     OPEN (not yet), PENDING (event still ahead), KILLED (inverse tripped).
     all_closed=True is the flip: low declared in, redeploy off the new range."""
@@ -464,9 +509,50 @@ def evaluate_gates(daily, weekly, funding_rates, etf_flows):
                                "resumption marked prior local lows; the scored weekly regime "
                                "version is Gate 2 above."))
 
+    # Who's driving the move? OI-delta decomposition — the whale-vs-squeeze
+    # read. Price up while futures positions CLOSE is short covering; price
+    # up on NEW leverage is a chase; price up with positioning flat and
+    # funding at baseline means the move is happening in SPOT — the whale
+    # signature (with the caveat that OTC accumulation is invisible to all
+    # exchange data). Heuristic thresholds: |3%| price and |4%| OI over 7d.
+    px_7d = (daily[-1] / daily[-8] - 1) * 100 if len(daily) >= 8 else None
+    drivers = None
+    if px_7d is not None and oi_7d is not None and funding_14d is not None:
+        if px_7d > 3:
+            if oi_7d <= -4:
+                label, expl = "SQUEEZE", ("price up while futures positions close — "
+                                          "short covering, not proven new demand")
+            elif oi_7d >= 4 and funding_14d > G2_FUNDING_FLAT_MAX:
+                label, expl = "LEVERED CHASE", ("price up on new leverage with funding above "
+                                                "baseline — fragile, liquidation-prone")
+            elif funding_14d <= G2_FUNDING_FLAT_MAX:
+                label, expl = "SPOT-LED", ("price up with futures positioning flat and funding "
+                                           "at/below baseline — the move is in spot: the whale "
+                                           "signature")
+            else:
+                label, expl = "MIXED", "price up but leverage and positioning give no clean read"
+        elif px_7d < -3:
+            if oi_7d <= -4:
+                label, expl = "LONG FLUSH", "price down while positions close — longs liquidating"
+            elif oi_7d >= 4:
+                label, expl = "SHORTS PRESSING", ("price down on new positions — shorts opening "
+                                                  "into weakness")
+            else:
+                label, expl = "SPOT SELLOFF", "price down with futures positioning flat — spot selling"
+        else:
+            label, expl = "QUIET", "no 7d impulse either way"
+        if label == "SPOT-LED" and premium is not None:
+            if premium >= 0.03:
+                expl += ". Coinbase premium positive — US institutional bid confirms"
+            elif premium <= -0.05:
+                expl += ". Coinbase premium negative — offshore-led, weaker confirmation"
+        drivers = {"label": label, "px_7d": round(px_7d, 1), "oi_7d": round(oi_7d, 1),
+                   "funding_14d_ann_pct": funding_14d,
+                   "coinbase_premium_pct": premium, "oi_source": oi_src, "detail": expl}
+
     return {
         "gates": gates, "closed": n_closed, "all_closed": all_closed,
-        "supporting": supporting,
+        "supporting": supporting, "drivers": drivers,
         "killed": killed, "early_warning": early_warning, "starter": starter,
         "ema50w": round(ema50w, 0) if ema50w else None,
         "weeks_above_50w": consec,
@@ -670,7 +756,9 @@ def run_monitor():
         "fired": fired,
         "scored": len(scored),
         "verdict": verdict,
-        "gates": evaluate_gates(daily, weekly, funding_rates, etf),
+        "gates": evaluate_gates(daily, weekly, funding_rates, etf,
+                                *fetch_open_interest_7d(daily),
+                                premium=fetch_coinbase_premium()),
     }
 
     try:
@@ -716,5 +804,12 @@ if __name__ == "__main__":
             print(f"{s['name']:<34} {s['status']:>8}  {s['value']}")
         for s in g.get("supporting", []):
             print(f"{s['name']:<34} {s['status']:>8}  {s['value']}  [supporting]")
+        d = g.get("drivers")
+        if d:
+            print(f"\nWho's driving: {d['label']} — 7d px {d['px_7d']:+.1f}%, "
+                  f"OI {d['oi_7d']:+.1f}% ({d['oi_source']}), funding "
+                  f"{d['funding_14d_ann_pct']:+.1f}% ann, CB premium "
+                  f"{d['coinbase_premium_pct'] if d['coinbase_premium_pct'] is not None else 'n/a'}%"
+                  f"\n  {d['detail']}")
         print(f"\n{g['verdict']}")
     print(f"\nCache written to {CACHE_PATH}")

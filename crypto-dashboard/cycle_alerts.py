@@ -58,6 +58,14 @@ def main():
         if was is not None and was != now:
             lines.append(f"- GATE {gnames.get(k, k)}: {was} -> {now} ({gvals.get(k, '?')})")
 
+    # Move-driver classification change (e.g. SQUEEZE -> SPOT-LED is the
+    # "demand replaces the squeeze" moment; -> LEVERED CHASE is the warning)
+    pdrv = (pgates.get("drivers") or {}).get("label")
+    ndrv = (ngates.get("drivers") or {}).get("label")
+    if pdrv and ndrv and pdrv != ndrv:
+        lines.append(f"- MOVE DRIVER: {pdrv} -> {ndrv} "
+                     f"({(ngates.get('drivers') or {}).get('detail', '')})")
+
     # Top-level flags
     flags = [("all_closed", "ALL FOUR GATES CLOSED - the flip condition"),
              ("killed", "GATES KILLED - inverse tripped, lower zones live again"),

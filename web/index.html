@@ -87,6 +87,7 @@
         flat. Turn-side reads that aren't scored gates (spot ETF daily flows) appear below the gates
         as supporting rows. Recomputed every 6 hours (00/06/12/18 UTC) with live distances in every note.
       </div>
+      <div id="gates-driver" style="margin-top:.4rem; font-size:.84rem"></div>
       <div id="gates-verdict" style="margin-top:.4rem; font-size:.82rem"></div>
     </div>
     <div class="tablewrap">
@@ -241,6 +242,18 @@ async function renderCycle() {
       : s === "KILLED" ? '<span class="neg" style="font-weight:600">&#9679; KILLED</span>'
       : s === "PENDING" ? '<span class="mut">&#9675; pending</span>'
       : '<span style="color:var(--amber)">&#9675; open</span>';
+    const dr = g.drivers, drEl = document.getElementById("gates-driver");
+    if (dr && drEl) {
+      const col = dr.label === "SPOT-LED" ? "#3fb950"
+        : ["SQUEEZE", "LEVERED CHASE", "MIXED"].includes(dr.label) ? "var(--amber)"
+        : ["LONG FLUSH", "SHORTS PRESSING", "SPOT SELLOFF"].includes(dr.label) ? "#f85149"
+        : "#8b949e";
+      const f = v => v == null ? "n/a" : (v >= 0 ? "+" : "") + v + "%";
+      drEl.innerHTML = `Who's driving this move: <strong style="color:${col}">${dr.label}</strong>` +
+        ` <span class="mut" style="font-size:.85em">7d price ${f(dr.px_7d)} · futures OI ${f(dr.oi_7d)}` +
+        ` (${dr.oi_source}) · funding ${f(dr.funding_14d_ann_pct)} ann · Coinbase premium ${f(dr.coinbase_premium_pct)}` +
+        ` — ${dr.detail}. OTC whale accumulation is invisible to all exchange data.</span>`;
+    }
     const schip = s => s === "POSITIVE"
       ? '<span class="pos" style="border:1px solid currentColor; border-radius:4px; padding:0 5px; font-size:.85em">&#9650; positive</span>'
       : '<span class="neg" style="border:1px solid currentColor; border-radius:4px; padding:0 5px; font-size:.85em">&#9660; negative</span>';
