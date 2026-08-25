@@ -351,7 +351,8 @@ def evaluate_gates(daily, weekly, funding_rates, etf_flows):
     g1 = _sig("g1", "Price proves the level",
               f"{consec} wkly closes > 50W EMA (${ema50w:,.0f})" if ema50w else "n/a",
               "KILLED" if g1_killed else ("CLOSED" if g1_ok else "OPEN"),
-              f"Need {G1_CLOSES_NEEDED} consecutive (2022's fakeout died at 2), then a weekly "
+              f"Need {G1_CLOSES_NEEDED} consecutive — {max(0, G1_CLOSES_NEEDED - consec)} more to go "
+              f"(2022's fakeout died at 2) — then a weekly "
               f"close over the ${G1_SUPPLY_SHELF/1000:.1f}k supply shelf that holds. "
               f"Shelf close: {'yes' if shelf_closed else 'no'}; holding now: "
               f"{'yes' if shelf_holding else 'no'}. Weekly close < ${KILL_WEEKLY_CLOSE/1000:.0f}k kills it.")
@@ -387,7 +388,7 @@ def evaluate_gates(daily, weekly, funding_rates, etf_flows):
     for dstr, name, floor in G3_EVENTS:
         d = datetime.strptime(dstr, "%Y-%m-%d").date()
         if today <= d:
-            ev_parts.append(f"{name} {dstr}: pending")
+            ev_parts.append(f"{name} in {(d - today).days}d ({dstr})")
             ev_pending = True
             ev_all_passed = False
         else:
@@ -509,61 +510,83 @@ def run_monitor():
     etf = fetch_etf_flows()            # ~30 sessions for the gates' weekly sums
     etf5 = etf[-5:] if etf else None   # the bottom checklist keeps its 5-day view
 
+    # Notes are LIVE: current reading, the level where the signal fires, and
+    # the distance from here — the history is the anchor, not the whole note.
     signals = []
+    to_rp = (realized_price / price - 1) * 100
     signals.append(_sig("mvrv", "MVRV < 1 (price tags realized price)",
                         f"{mvrv:.2f}" if mvrv is not None else "n/a (feed down)",
                         "NA" if mvrv is None else
                         ("FIRED" if mvrv < 1 else ("CLOSE" if mvrv < 1.1 else "NOT_FIRED")),
-                        f"Realized price ${realized_price:,.0f}"
+                        f"Fires at price ≤ realized ${realized_price:,.0f} ({to_rp:+.1f}% from here)"
                         + ("" if rp_live else " (static research value)")
                         + " — fired at every 2015/2018/2022 low"))
+    wma_gap = (price / wma200 - 1) * 100 if wma200 else None
     signals.append(_sig("wma200", "200-week MA touch",
                         f"${wma200:,.0f}" if wma200 else "n/a",
                         "FIRED" if (wma200 and price < wma200 * 1.02) else
                         ("CLOSE" if (wma200 and price < wma200 * 1.08) else "NOT_FIRED"),
-                        "Every prior bear bottomed at/below this line (2022 pierced it -25%)"))
+                        (f"Price {wma_gap:+.1f}% vs the line; fires within +2% of it. "
+                         if wma_gap is not None else "")
+                        + "Every prior bear bottomed at/below it (2022 pierced -25%)"))
     signals.append(_sig("nupl", "NUPL < 0 (aggregate capitulation)",
                         f"{nupl:.2f}" if nupl is not None else "n/a (feed down)",
                         "NA" if nupl is None else
                         ("FIRED" if nupl < 0 else ("CLOSE" if nupl < 0.1 else "NOT_FIRED")),
-                        "Went negative at all three prior lows (-0.20 to -0.25)"))
+                        f"Hits 0 when price tags realized ${realized_price:,.0f} ({to_rp:+.1f}% from "
+                        "here); prior lows printed -0.20 to -0.25"))
     signals.append(_sig("puell", "Puell Multiple < 0.5",
                         f"{puell:.2f}" if puell else "n/a",
                         "NA" if puell is None else
                         ("FIRED" if puell < 0.5 else ("CLOSE" if puell < 0.8 else "NOT_FIRED")),
-                        "0.3-0.4 at prior lows; <1 = miner stress"))
+                        (f"Miner revenue must fall {(1 - 0.5 / puell) * 100:.0f}% from today's rate to "
+                         "fire. " if puell and puell > 0.5 else "")
+                        + "0.3-0.4 at prior lows; <1 = miner stress"))
+    mayer_fire = 0.6 * dma200 if dma200 else None
     signals.append(_sig("mayer", "Mayer Multiple < 0.6",
                         f"{mayer:.2f}" if mayer else "n/a",
                         "NA" if mayer is None else
                         ("FIRED" if mayer < 0.6 else ("CLOSE" if mayer < 0.85 else "NOT_FIRED")),
-                        "Cycle bottoms printed ~0.5-0.6"))
+                        (f"Fires at ${mayer_fire:,.0f} ({(mayer_fire / price - 1) * 100:+.1f}% from "
+                         "here). " if mayer_fire else "")
+                        + "Cycle bottoms printed ~0.5-0.6"))
     if ribbons:
+        rib_gap = ((ribbons["sma30"] / ribbons["sma60"] - 1) * 100
+                   if ribbons.get("sma60") else None)
         signals.append(_sig("ribbons", "Hash ribbons capitulation → recovery",
                             ribbons["state"].replace("_", " "),
                             "FIRED" if ribbons["state"] == "recovery_buy" else
                             ("CLOSE" if ribbons["state"] == "capitulation" else "NOT_FIRED"),
-                            "Buy signal marked every bottom since 2015 (fired Q1 2026; can run early)"))
+                            (f"30d hashrate {rib_gap:+.1f}% vs 60d. " if rib_gap is not None else "")
+                            + "Fires on the capitulation→recovery cross; marked every bottom "
+                            "since 2015 (can run early)"))
+    pi_ratio = (ema150 / (0.745 * sma471)) if (ema150 and sma471) else None
     signals.append(_sig("pi", "Pi Cycle Bottom (150EMA < 0.745×471SMA)",
                         "in process" if pi_bottom else "no",
                         "FIRED" if pi_bottom else "NOT_FIRED",
-                        "Curve-fit confirmation overlay — lows form between down-cross and re-cross"))
+                        (f"150EMA sits {pi_ratio:.2f}× the trigger line (fires under 1.00). "
+                         if pi_ratio else "")
+                        + "Lows form between the down-cross and the re-cross"))
     if fng:
         signals.append(_sig("fng", "Fear & Greed sustained < 25",
                             f"{fng['value']} ({fng['label']})",
                             "FIRED" if fng["sub25_streak_days"] >= 14 else
                             ("CLOSE" if fng["value"] < 30 else "NOT_FIRED"),
-                            f"Current sub-25 streak: {fng['sub25_streak_days']}d — regime gauge, not a timer"))
+                            f"Needs 14 straight days under 25; now {fng['value']} with a "
+                            f"{fng['sub25_streak_days']}d streak — regime gauge, not a timer"))
     if funding is not None:
         signals.append(_sig("funding", "Negative 30d avg funding",
                             f"{funding:+.1f}% ann.",
                             "FIRED" if funding < 0 else ("CLOSE" if funding < 3 else "NOT_FIRED"),
-                            "46-day negative streak into Apr 2026 = leverage washout; watch for repeat at new lows"))
+                            f"Longs paying {funding:+.1f}% ann. now; fires below zero. The 46-day "
+                            "negative streak into Apr 2026 was the leverage washout"))
     if etf5:
         recent = sum(f["net_usd_m"] for f in etf5)
         signals.append(_sig("etf", "Spot ETF flows (last 5 sessions)",
                             f"{recent:+,.0f}M USD",
                             "FIRED" if recent > 0 else "NOT_FIRED",
-                            "Outflow-capitulation → inflow-resumption marked recent local lows"))
+                            f"{'Net inflow' if recent > 0 else 'Net outflow'} this week; the weekly "
+                            "regime version is Gate 2 in the Upside Gates card"))
 
     scored = [s for s in signals if s["status"] != "NA"]
     fired = sum(1 for s in scored if s["status"] == "FIRED")

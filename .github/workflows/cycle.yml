@@ -1,0 +1,52 @@
+name: Cycle monitor refresh
+
+# The nightly scan recomputes the cycle monitor + upside gates once a day,
+# but the gates carry live distances (funding, ETF weeks, event countdowns,
+# price vs the 50W EMA) that go stale across a 24h crypto session. This job
+# re-runs ONLY the cycle monitor every 6 hours. The nightly's 06:20 UTC run
+# covers the 06:00 slot, so this fires at 00/12/18 UTC.
+on:
+  schedule:
+    - cron: "10 0,12,18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Same group as the nightly scan and the stock-quotes job: everything that
+# commits to main queues instead of racing on the push.
+concurrency:
+  group: screener-scan
+  cancel-in-progress: false
+
+jobs:
+  cycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: pip install requests
+
+      - name: Run cycle monitor
+        run: |
+          # cycle_monitor.py exits non-zero if the price fetch fails, so a
+          # feed outage keeps the previous cycle.json instead of blanking it.
+          cp web/cycle.json web/cycle_prev.json 2>/dev/null || true
+          python crypto-dashboard/cycle_monitor.py
+          cp crypto-dashboard/cycle_cache.json web/cycle.json
+
+      - name: Commit if changed
+        run: |
+          git config user.name  "screener-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add web/cycle.json
+          [ -f web/cycle_prev.json ] && git add web/cycle_prev.json
+          git diff --staged --quiet && echo "No change" || git commit -m "Cycle monitor refresh"
+          git pull --rebase origin main
+          git push
