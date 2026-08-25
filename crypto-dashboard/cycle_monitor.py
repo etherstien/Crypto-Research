@@ -59,6 +59,29 @@ CYCLE_TOP = 126296.0            # Oct 6 2025 top
 WINDOW_START = "2026-10-04"     # top + 363 days
 WINDOW_END = "2026-11-20"       # top + 410 days
 
+# ── Upside-confirmation gates (Aug-2026 "four gates" framework) ─────────────
+# The bottom checklist only fires if price goes LOWER — in a V-recovery it
+# reads 1/9 forever and the model can never say "get in". These gates are the
+# other half: what must be TRUE to declare the low in and redeploy with the
+# lower zones unfilled. All four closing = flip. Thresholds are thesis
+# parameters from the Aug-2026 read ($7.2B shorts liquidated = squeeze fuel
+# spent; whatever moves price next is closer to real demand) — revisit as the
+# structure moves.
+G1_WEEKLY_EMA_LEN = 50          # 50-week EMA, the 2022-fakeout killer line
+G1_CLOSES_NEEDED = 3            # 2022 managed exactly 2 closes above; 3 has no bear precedent
+G1_SUPPLY_SHELF = 84500.0       # low-$80s overhead supply; weekly close above = sellers absorbed
+G2_ETF_WEEKLY_USD_M = 1000.0    # ETF net inflows >= $1B/week...
+G2_ETF_WEEKS_NEEDED = 3         # ...for 3 consecutive completed weeks (regime, not spike)
+G2_FUNDING_FLAT_MAX = 5.0       # ann. %; under this while price holds = spot-led, not re-levered
+G3_EVENTS = [                   # (date, name, floor BTC must hold after it)
+    ("2026-08-28", "PCE print", 75000.0),
+    ("2026-09-16", "FOMC decision", 70000.0),
+]
+G4_HOLD_LINE = 75000.0          # still above this at the deadline = bears out of window
+G4_DEADLINE = "2026-09-30"      # Q4-flush window (Cowen/Brandt/Martinez cluster early-mid Oct)
+KILL_WEEKLY_CLOSE = 72000.0     # weekly close below = Gate 1 dead, lower zones live again
+KILL_FUNDING_ANN = 10.0         # funding above this with price flat = re-levered, not demand
+
 
 def _get(url, params=None, timeout=30, retries=2, headers=None):
     last_err = None
@@ -100,6 +123,19 @@ def _ema(vals, n):
     for v in vals[n:]:
         e = v * k + e * (1 - k)
     return e
+
+
+def _ema_series(vals, n):
+    """EMA value aligned to every index (None during warmup)."""
+    if len(vals) < n:
+        return [None] * len(vals)
+    k = 2 / (n + 1)
+    e = sum(vals[:n]) / n
+    out = [None] * (n - 1) + [e]
+    for v in vals[n:]:
+        e = v * k + e * (1 - k)
+        out.append(e)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -214,8 +250,8 @@ def fetch_fear_greed():
             "sub25_streak_days": streak}
 
 
-def fetch_funding_30d():
-    """30d average funding, annualized %. Binance first, OKX fallback."""
+def fetch_funding_rates():
+    """8h funding-rate history, oldest first. Binance first, OKX fallback."""
     data = _get_json("https://fapi.binance.com/fapi/v1/fundingRate",
                      params={"symbol": "BTCUSDT", "limit": 90})
     rates = []
@@ -226,14 +262,20 @@ def fetch_funding_30d():
                          params={"instId": "BTC-USD-SWAP", "limit": 100})
         rates = [float(r["fundingRate"]) for r in (data or {}).get("data", [])
                  if r.get("fundingRate")]
+        rates.reverse()   # OKX serves newest first
+    return rates
+
+
+def _funding_ann(rates):
+    """Average 8h funding as annualized %; None on empty."""
     if not rates:
         return None
-    avg8h = sum(rates) / len(rates)
-    return round(avg8h * 3 * 365 * 100, 2)  # annualized %
+    return round(sum(rates) / len(rates) * 3 * 365 * 100, 2)
 
 
-def fetch_etf_flows():
-    """Best-effort scrape of Farside's BTC ETF flow table -> last 5 daily totals."""
+def fetch_etf_flows(sessions=30):
+    """Best-effort scrape of Farside's BTC ETF flow table -> last N daily totals
+    (30 by default so the gates can aggregate weekly; the checklist uses 5)."""
     r = _get("https://farside.co.uk/btc/")
     if r is None:
         return None
@@ -250,9 +292,28 @@ def fetch_etf_flows():
                 flows.append({"date": cells[0], "net_usd_m": float(total)})
             except ValueError:
                 pass
-        return flows[-5:] if flows else None
+        return flows[-sessions:] if flows else None
     except Exception:
         return None
+
+
+def _etf_weekly_sums(flows):
+    """Completed calendar weeks only, oldest first: [(iso_week_label, sum_usd_m)]."""
+    if not flows:
+        return []
+    by_week = {}
+    this_week = datetime.now(timezone.utc).date().isocalendar()[:2]
+    for f in flows:
+        try:
+            d = datetime.strptime(f["date"], "%d %b %Y").date()
+        except ValueError:
+            continue
+        wk = d.isocalendar()[:2]
+        if wk == this_week:
+            continue                      # in-progress week: not a regime datapoint yet
+        by_week.setdefault(wk, 0.0)
+        by_week[wk] += f["net_usd_m"]
+    return [(f"{y}-W{w:02d}", round(v, 0)) for (y, w), v in sorted(by_week.items())]
 
 
 # ---------------------------------------------------------------------------
@@ -261,6 +322,141 @@ def fetch_etf_flows():
 
 def _sig(key, name, value, status, detail):
     return {"key": key, "name": name, "value": value, "status": status, "detail": detail}
+
+
+# ---------------------------------------------------------------------------
+# Upside gates — the "you'd better get in" half of the model
+# ---------------------------------------------------------------------------
+
+def evaluate_gates(daily, weekly, funding_rates, etf_flows):
+    """The four upside-confirmation gates. Statuses: CLOSED (condition met),
+    OPEN (not yet), PENDING (event still ahead), KILLED (inverse tripped).
+    all_closed=True is the flip: low declared in, redeploy off the new range."""
+    price = daily[-1]
+    today = datetime.now(timezone.utc).date()
+    closed_w = weekly[:-1]                    # drop the in-progress weekly candle
+
+    # ── Gate 1: price proves the level ──
+    emas = _ema_series(closed_w, G1_WEEKLY_EMA_LEN)
+    ema50w = emas[-1] if emas else None
+    consec = 0
+    for c, e in zip(reversed(closed_w), reversed(emas)):
+        if e is None or c <= e:
+            break
+        consec += 1
+    shelf_closed = closed_w[-1] > G1_SUPPLY_SHELF
+    shelf_holding = price > G1_SUPPLY_SHELF
+    g1_killed = closed_w[-1] < KILL_WEEKLY_CLOSE
+    g1_ok = consec >= G1_CLOSES_NEEDED and shelf_closed and shelf_holding
+    g1 = _sig("g1", "Price proves the level",
+              f"{consec} wkly closes > 50W EMA (${ema50w:,.0f})" if ema50w else "n/a",
+              "KILLED" if g1_killed else ("CLOSED" if g1_ok else "OPEN"),
+              f"Need {G1_CLOSES_NEEDED} consecutive (2022's fakeout died at 2), then a weekly "
+              f"close over the ${G1_SUPPLY_SHELF/1000:.1f}k supply shelf that holds. "
+              f"Shelf close: {'yes' if shelf_closed else 'no'}; holding now: "
+              f"{'yes' if shelf_holding else 'no'}. Weekly close < ${KILL_WEEKLY_CLOSE/1000:.0f}k kills it.")
+
+    # ── Gate 2: demand replaces the squeeze ──
+    funding_14d = _funding_ann(funding_rates[-42:]) if funding_rates else None
+    px_14d = (daily[-1] / daily[-15] - 1) * 100 if len(daily) >= 15 else None
+    spot_led = (funding_14d is not None and px_14d is not None
+                and funding_14d < G2_FUNDING_FLAT_MAX and px_14d > -2)
+    weeks = _etf_weekly_sums(etf_flows)
+    etf_consec = 0
+    for _, v in reversed(weeks):
+        if v >= G2_ETF_WEEKLY_USD_M:
+            etf_consec += 1
+        else:
+            break
+    g2_killed = (funding_14d is not None and px_14d is not None
+                 and funding_14d > KILL_FUNDING_ANN and px_14d < 2)
+    g2_ok = etf_consec >= G2_ETF_WEEKS_NEEDED and spot_led
+    wk_txt = ", ".join(f"{v:+,.0f}M" for _, v in weeks[-4:]) or "no flow data"
+    g2 = _sig("g2", "Demand replaces the squeeze",
+              f"ETF wks {wk_txt} · funding {funding_14d:+.1f}% ann"
+              if funding_14d is not None else f"ETF wks {wk_txt} · funding n/a",
+              "KILLED" if g2_killed else ("CLOSED" if g2_ok else "OPEN"),
+              f"Need {G2_ETF_WEEKS_NEEDED} straight completed weeks >= ${G2_ETF_WEEKLY_USD_M:,.0f}M "
+              f"(now {etf_consec}) AND 14d funding under {G2_FUNDING_FLAT_MAX:.0f}% ann. while price "
+              f"holds (spot-led, not re-levered). CryptoQuant spot+futures demand staying positive "
+              f"through late Sep is the manual third check — no free feed. Funding spiking with "
+              f"price flat kills it.")
+
+    # ── Gate 3: the events don't break it ──
+    ev_parts, ev_all_passed, ev_failed, ev_pending = [], True, False, False
+    for dstr, name, floor in G3_EVENTS:
+        d = datetime.strptime(dstr, "%Y-%m-%d").date()
+        if today <= d:
+            ev_parts.append(f"{name} {dstr}: pending")
+            ev_pending = True
+            ev_all_passed = False
+        else:
+            days = (today - d).days
+            since = daily[-(days + 1):] if days + 1 <= len(daily) else daily
+            held = min(since) >= floor
+            ev_parts.append(f"{name}: {'held' if held else 'BROKE'} ${floor/1000:.0f}k")
+            if not held:
+                ev_all_passed = False
+                ev_failed = True
+    g3 = _sig("g3", "The events don't break it",
+              " · ".join(ev_parts),
+              "CLOSED" if ev_all_passed else ("OPEN" if ev_failed else "PENDING"),
+              "PCE then the Sep 16 FOMC, absorbed without losing the floor on a close — a hawkish "
+              "print absorbed would be the strongest signal of all. Clarity Act vote is a bonus "
+              "accelerant, not a requirement.")
+
+    # ── Gate 4: time runs out on the bears ──
+    deadline = datetime.strptime(G4_DEADLINE, "%Y-%m-%d").date()
+    days_left = (deadline - today).days
+    on_track = price > G4_HOLD_LINE and closed_w[-1] > G4_HOLD_LINE
+    if days_left > 0:
+        g4_status = "PENDING"
+        g4_val = f"{days_left}d to {G4_DEADLINE}; {'on track' if on_track else 'NOT holding'} ${G4_HOLD_LINE/1000:.0f}k"
+    else:
+        days_since = min(-days_left + 30, len(daily) - 1)
+        held_month = min(daily[-(days_since + 1):]) >= G4_HOLD_LINE
+        g4_status = "CLOSED" if held_month else "OPEN"
+        g4_val = f"deadline passed; {'held' if held_month else 'lost'} ${G4_HOLD_LINE/1000:.0f}k through it"
+    g4 = _sig("g4", "Time runs out on the bears", g4_val, g4_status,
+              "The Q4-flush thesis is a WINDOW (early-mid Oct cluster), not just a target. A flush "
+              "needs momentum to feed on; every week above the 50W EMA subtracts one from the "
+              "bears. Above the line at the deadline = no mechanism left.")
+
+    gates = [g1, g2, g3, g4]
+    n_closed = sum(1 for g in gates if g["status"] == "CLOSED")
+    killed = any(g["status"] == "KILLED" for g in gates)
+    all_closed = n_closed == 4 and not killed
+    early_warning = (spot_led and (px_14d or 0) > 0 and len(weeks) >= 2
+                     and weeks[-1][1] > 0 and weeks[-1][1] >= weeks[-2][1])
+    starter = consec >= 2 and not killed
+
+    if killed:
+        verdict = ("GATES KILLED — the inverse tripped. Lower tranche zones are live again; "
+                   "the bottom checklist above is the map.")
+    elif all_closed:
+        verdict = ("ALL FOUR GATES CLOSED — flip: treat the low as in, deploy at market, "
+                   "re-anchor the tranche ladder off the new range. The unfilled zones are sunk cost.")
+    else:
+        verdict = (f"{n_closed}/4 gates closed."
+                   + (" EARLY WARNING live: funding flat while price grinds higher on rising ETF "
+                      "inflows — squeezes exhaust, spot bids persist; gates are closing early."
+                      if early_warning else "")
+                   + (f" Starter condition met ({consec} weekly closes > 50W EMA): the 10-15% "
+                      "pre-commitment tranche is armed." if starter else ""))
+
+    return {
+        "gates": gates, "closed": n_closed, "all_closed": all_closed,
+        "killed": killed, "early_warning": early_warning, "starter": starter,
+        "ema50w": round(ema50w, 0) if ema50w else None,
+        "weeks_above_50w": consec,
+        "etf_weekly": [{"week": w, "net_usd_m": v} for w, v in weeks[-6:]],
+        "funding_14d_ann_pct": funding_14d,
+        "verdict": verdict,
+        "params": {"closes_needed": G1_CLOSES_NEEDED, "supply_shelf": G1_SUPPLY_SHELF,
+                   "etf_weekly_usd_m": G2_ETF_WEEKLY_USD_M, "etf_weeks": G2_ETF_WEEKS_NEEDED,
+                   "hold_line": G4_HOLD_LINE, "deadline": G4_DEADLINE,
+                   "kill_weekly_close": KILL_WEEKLY_CLOSE},
+    }
 
 
 REALIZED_PRICE_FALLBACK = 52500.0  # Jul-2026 research value, used if CM is down
@@ -308,8 +504,10 @@ def run_monitor():
         puell = revenue[-1] / _sma(revenue, 365)
 
     fng = fetch_fear_greed()
-    funding = fetch_funding_30d()
-    etf = fetch_etf_flows()
+    funding_rates = fetch_funding_rates()
+    funding = _funding_ann(funding_rates)
+    etf = fetch_etf_flows()            # ~30 sessions for the gates' weekly sums
+    etf5 = etf[-5:] if etf else None   # the bottom checklist keeps its 5-day view
 
     signals = []
     signals.append(_sig("mvrv", "MVRV < 1 (price tags realized price)",
@@ -360,8 +558,8 @@ def run_monitor():
                             f"{funding:+.1f}% ann.",
                             "FIRED" if funding < 0 else ("CLOSE" if funding < 3 else "NOT_FIRED"),
                             "46-day negative streak into Apr 2026 = leverage washout; watch for repeat at new lows"))
-    if etf:
-        recent = sum(f["net_usd_m"] for f in etf)
+    if etf5:
+        recent = sum(f["net_usd_m"] for f in etf5)
         signals.append(_sig("etf", "Spot ETF flows (last 5 sessions)",
                             f"{recent:+,.0f}M USD",
                             "FIRED" if recent > 0 else "NOT_FIRED",
@@ -417,12 +615,13 @@ def run_monitor():
             "puell": round(puell, 3) if puell else None,
             "funding_30d_ann_pct": funding,
             "fear_greed": fng,
-            "etf_last5": etf,
+            "etf_last5": etf5,
         },
         "signals": signals,
         "fired": fired,
         "scored": len(scored),
         "verdict": verdict,
+        "gates": evaluate_gates(daily, weekly, funding_rates, etf),
     }
 
     try:
@@ -460,4 +659,11 @@ if __name__ == "__main__":
     for s in res["signals"]:
         print(f"{s['name']:<44} {s['value']:>16}  {s['status']}")
     print(f"\n{res['verdict']}")
+    g = res.get("gates")
+    if g:
+        print(f"\nUPSIDE GATES ({g['closed']}/4 closed)")
+        print("-" * 76)
+        for s in g["gates"]:
+            print(f"{s['name']:<34} {s['status']:>8}  {s['value']}")
+        print(f"\n{g['verdict']}")
     print(f"\nCache written to {CACHE_PATH}")

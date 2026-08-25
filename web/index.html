@@ -68,6 +68,28 @@
     </div>
   </div>
 
+  <!-- Upside Gates — the get-IN half of the model -->
+  <div class="card" id="gates-card" style="display:none; margin-bottom:1rem">
+    <div style="padding:.8rem 1rem; border-bottom:1px solid var(--border)">
+      <strong style="font-size:1rem">Upside Gates &mdash; is the low in?</strong>
+      <span class="mut" id="gates-meta" style="margin-left:.6rem; font-size:.8rem"></span>
+      <div class="mut" style="margin-top:.4rem; font-size:.8rem">
+        The bottom checklist above only fires if price goes <em>lower</em> &mdash; in a V-recovery it
+        waits forever. These four gates are the other half: proof that spot demand has replaced
+        short-covering as the market's source of momentum. All four close &rarr; flip: the low is in,
+        deploy at market, re-anchor the ladder off the new range and let the unfilled zones go.
+        Kill switches: weekly close &lt; $72k, or funding spiking with price flat.
+      </div>
+      <div id="gates-verdict" style="margin-top:.4rem; font-size:.82rem"></div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Gate</th><th class="r">Reading</th><th>Status</th><th>Note</th></tr></thead>
+        <tbody id="gates-rows"></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Coin Rotation Monitor (Nadeau framework) -->
   <div class="card" id="rot-card" style="display:none; margin-bottom:1rem">
     <div style="padding:.8rem 1rem; border-bottom:1px solid var(--border)">
@@ -119,8 +141,9 @@
       (hover a rank for the reasoning + TDR's own rank); grey #16-30* = Claude's fill-in top 15 for names off the sheet.
       Everything below #30 is deliberately unranked. Rank answers "what"; the Deploy tier answers "when".
       <br><strong>Deploy tiers</strong> (crypto only — stocks are ranked on the BlueChip page):
-      <span class="pos">BUY</span> = deep discount (&ge;50% off ATH), basing, <em>and</em> the BTC cycle
-      monitor above agrees a bottom is plausible (&ge;4/9 signals fired or the bottoming window open);
+      <span class="pos">BUY</span> = deep discount (&ge;50% off ATH), basing, <em>and</em> the market-level
+      check agrees: the cycle monitor sees a plausible bottom (&ge;4/9 signals or the window open)
+      <em>or</em> all four Upside Gates have closed (the low-is-in confirmation);
       <span style="color:var(--amber)">&#9684; LADDER ONLY</span> = same deep-discount-and-basing setup,
       but the cycle monitor says it's early — the discount is asset-level evidence, a bottom is a
       market-level claim, and every name here shares that one factor. First tranche at ladder zones only;
@@ -197,6 +220,24 @@ async function renderCycle() {
   document.getElementById("cycle-rows").innerHTML = (c.signals || []).map(s =>
     `<tr><td>${s.name}</td><td class="r">${s.value}</td><td>${chip(s.status)}</td>` +
     `<td class="mut" style="font-size:.76em; white-space:normal">${s.detail}</td></tr>`).join("");
+
+  const g = c.gates;
+  if (g && (g.gates || []).length) {
+    document.getElementById("gates-card").style.display = "block";
+    document.getElementById("gates-meta").textContent =
+      `${g.closed}/4 closed · ${g.weeks_above_50w} wkly close${g.weeks_above_50w === 1 ? "" : "s"} above 50W EMA` +
+      (g.ema50w ? ` ($${Number(g.ema50w).toLocaleString()})` : "");
+    const gv = document.getElementById("gates-verdict");
+    gv.textContent = g.verdict || "";
+    gv.className = g.all_closed ? "pos" : (g.killed ? "neg" : "mut");
+    const gchip = s => s === "CLOSED" ? '<span class="pos" style="font-weight:600">&#9679; CLOSED</span>'
+      : s === "KILLED" ? '<span class="neg" style="font-weight:600">&#9679; KILLED</span>'
+      : s === "PENDING" ? '<span class="mut">&#9675; pending</span>'
+      : '<span style="color:var(--amber)">&#9675; open</span>';
+    document.getElementById("gates-rows").innerHTML = g.gates.map(s =>
+      `<tr><td>${s.name}</td><td class="r" style="font-size:.8em">${s.value}</td><td>${gchip(s.status)}</td>` +
+      `<td class="mut" style="font-size:.76em; white-space:normal">${s.detail}</td></tr>`).join("");
+  }
 }
 renderCycle();
 
@@ -248,7 +289,12 @@ async function renderWatchlist() {
   const cyc = await loadJson("cycle.json");
   const cycFired = cyc?.fired ?? null, cycScored = cyc?.scored ?? 9;
   const cycInWindow = cyc?.window?.in_window === true;
-  const cycleEarly = cycFired != null && cycFired < 4 && !cycInWindow;
+  // Two ways in: the bottom checklist confirms capitulation (>=4/9 or the
+  // template window), OR the four upside gates all close (the low is in and
+  // running — the V-recovery path the checklist can never see).
+  const gatesAllClosed = cyc?.gates?.all_closed === true;
+  const gatesClosed = cyc?.gates?.closed ?? 0;
+  const cycleEarly = cycFired != null && cycFired < 4 && !cycInWindow && !gatesAllClosed;
 
   // Deploy tier: is NOW a sane time to start tranches, per the zone-buying
   // thesis? Deep discount + basing = BUY (cycle permitting); deep but
@@ -273,7 +319,7 @@ async function renderWatchlist() {
   }
   const tierChip = t =>
     t === "BUY" ? '<span class="pos" style="font-weight:600">&#9679; BUY</span>'
-    : t === "LADDER" ? `<span style="color:var(--amber); font-weight:600" title="Deep discount and basing — would be BUY — but the BTC cycle monitor has only ${cycFired}/${cycScored} bottom signals fired and the bottoming window hasn't opened. Market-level bottom unconfirmed: first tranche at Pine ladder zones only.">&#9684; LADDER ONLY</span>`
+    : t === "LADDER" ? `<span style="color:var(--amber); font-weight:600" title="Deep discount and basing — would be BUY — but the market-level bottom is unconfirmed both ways: only ${cycFired}/${cycScored} bottom signals fired (window not open) and ${gatesClosed}/4 upside gates closed. First tranche at Pine ladder zones only.">&#9684; LADDER ONLY</span>`
     : t === "KNIFE" ? '<span style="color:var(--amber); font-weight:600">&#9679; KNIFE</span>'
     : t === "EXTENDED" ? '<span style="color:#a371f7">&#9675; EXTENDED</span>'
     : '<span class="mut">&#9675; NOT YET</span>';
