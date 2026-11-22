@@ -1,8 +1,9 @@
 {
-  "_note": "Watchlist config. cg = CoinGecko id (crypto, fetched live in browser); type stock = nightly quote via workflow. held = you hold it. rank/score/comment = Damian's top-15 conviction ranking (tdr = TDR Pro's own rank); auto:true = Claude's fill-in ranking for names outside the top-15 sheet. Fix any wrong cg id here and redeploy.",
+  "_note": "Watchlist config. cg = CoinGecko id (crypto, fetched live in browser); type stock = nightly quote via workflow. tdr_pct/tdr_entry = share of the TDR Pro portfolio and TDR's average entry from the TDR Pro holdings sheet (see _tdr_asof). rank/score/comment = Damian's top-15 conviction ranking (tdr = TDR Pro's own rank); auto:true = Claude's fill-in ranking for names outside the top-15 sheet. Fix any wrong cg id here and redeploy.",
   "groups": [
     {
       "name": "TDR Pro — Positions",
+      "note": "TDR Pro holdings sheet Nov 18 2026 · cash 6.23%",
       "rows": [
         {
           "sym": "BTC",
@@ -11,7 +12,19 @@
           "rank": 4,
           "score": 8.4,
           "tdr": 17,
-          "comment": "Biggest upgrade vs TDR: in a fragile recovery with negative YTD ETF flows, the best risk-adjusted asset should not sit behind seven higher-beta alts."
+          "comment": "Biggest upgrade vs TDR: in a fragile recovery with negative YTD ETF flows, the best risk-adjusted asset should not sit behind seven higher-beta alts.",
+          "tdr_pct": 30.66,
+          "tdr_entry": "$61,286"
+        },
+        {
+          "sym": "ZEC",
+          "name": "Zcash",
+          "cg": "zcash",
+          "rank": 30,
+          "auto": true,
+          "comment": "Privacy narrative held up unusually well through this bear. TDR added 11/15 at $899 (35% of its remaining cash).",
+          "tdr_pct": 7.92,
+          "tdr_entry": "$869"
         },
         {
           "sym": "ETH",
@@ -20,7 +33,68 @@
           "rank": 6,
           "score": 8.3,
           "tdr": 9,
-          "comment": "TVL, institutional and stablecoin leadership at a depressed price. Treated as tied with SOL."
+          "comment": "TVL, institutional and stablecoin leadership at a depressed price. Treated as tied with SOL.",
+          "tdr_pct": 1.79,
+          "tdr_entry": "$1,732"
+        },
+        {
+          "sym": "LIT",
+          "name": "Lighter",
+          "cg": "lighter",
+          "rank": 16,
+          "auto": true,
+          "comment": "First name outside your 15: buybacks + Ethereum anchoring + Robinhood ties, but price has outrun fundamentals — conviction yes, adds only at ladder zones.",
+          "tdr_pct": 9.93,
+          "tdr_entry": "$0.937"
+        },
+        {
+          "sym": "DRV",
+          "name": "Derive",
+          "cg": "derive",
+          "tdr_pct": 11.33,
+          "tdr_entry": "$0.0947"
+        },
+        {
+          "sym": "PUMP",
+          "name": "Pump.fun",
+          "cg": "pump-fun",
+          "rank": 18,
+          "auto": true,
+          "comment": "~$1M/day revenue with 50% recycled into buybacks in a full risk-off bear — the fast-DeFi thesis intact.",
+          "tdr_pct": 10.94,
+          "tdr_entry": "$0.001740"
+        },
+        {
+          "sym": "PONS",
+          "name": "Pons",
+          "cg": "pons",
+          "tdr_pct": 3.1,
+          "tdr_entry": "$0.0580"
+        },
+        {
+          "sym": "ENA",
+          "name": "Ethena",
+          "cg": "ethena",
+          "rank": 21,
+          "auto": true,
+          "comment": "The comeback-story candidate: Coinbase + BlackRock Aladdin distribution, down ~93%, buyback cushion. Needs risk-on to work.",
+          "tdr_pct": 4.87,
+          "tdr_entry": "$0.0934"
+        },
+        {
+          "sym": "WLD",
+          "name": "Worldcoin",
+          "cg": "worldcoin-wld",
+          "comment": "Identity moonshot with Eightco DAT bid behind it; unlock overhang is the drag.",
+          "tdr_pct": 1.6,
+          "tdr_entry": "$0.2632"
+        },
+        {
+          "sym": "GRASS",
+          "name": "Grass",
+          "cg": "grass",
+          "tdr_pct": 1.83,
+          "tdr_entry": "$0.529"
         },
         {
           "sym": "COIN",
@@ -29,83 +103,71 @@
           "rank": 11,
           "score": 8.0,
           "tdr": 13,
-          "comment": "Agree with TDR."
+          "comment": "Agree with TDR.",
+          "tdr_pct": 0.39,
+          "tdr_entry": "$99.58"
         },
         {
           "sym": "CRCL",
           "name": "Circle",
           "type": "stock",
-          "held": true,
           "rank": 22,
           "auto": true,
-          "comment": "USDC liquidity + CCTP moat, down 65-75%; OpenUSD is real competition but the moat is underappreciated."
-        },
-        {
-          "sym": "LIT",
-          "name": "Lighter",
-          "cg": "lighter",
-          "held": true,
-          "rank": 16,
-          "auto": true,
-          "comment": "First name outside your 15: buybacks + Ethereum anchoring + Robinhood ties, but price has outrun fundamentals — conviction yes, adds only at ladder zones."
-        },
-        {
-          "sym": "DRV",
-          "name": "Derive",
-          "cg": "derive"
-        },
-        {
-          "sym": "PUMP",
-          "name": "Pump.fun",
-          "cg": "pump-fun",
-          "held": true,
-          "rank": 18,
-          "auto": true,
-          "comment": "~$1M/day revenue with 50% recycled into buybacks in a full risk-off bear — the fast-DeFi thesis intact."
-        },
-        {
-          "sym": "ENA",
-          "name": "Ethena",
-          "cg": "ethena",
-          "held": true,
-          "rank": 21,
-          "auto": true,
-          "comment": "The comeback-story candidate: Coinbase + BlackRock Aladdin distribution, down ~93%, buyback cushion. Needs risk-on to work."
+          "comment": "USDC liquidity + CCTP moat, down 65-75%; OpenUSD is real competition but the moat is underappreciated.",
+          "tdr_pct": 1.08,
+          "tdr_entry": "$82.25"
         },
         {
           "sym": "PENGU",
           "name": "Pudgy Penguins",
           "cg": "pudgy-penguins",
-          "held": true
+          "tdr_pct": 0.94,
+          "tdr_entry": "$0.00796"
         },
         {
           "sym": "SPX6900",
           "name": "SPX6900",
           "cg": "spx6900",
-          "comment": "Meme tier, but holder-conviction metrics reportedly track Bitcoin's — the strongest cult on the list."
+          "comment": "Meme tier, but holder-conviction metrics reportedly track Bitcoin's — the strongest cult on the list.",
+          "tdr_pct": 1.51,
+          "tdr_entry": "$0.332"
         },
         {
           "sym": "USELESS",
           "name": "Useless Coin",
-          "cg": "useless-coin",
-          "held": true
+          "cg": "useless-3",
+          "tdr_pct": 5.49,
+          "tdr_entry": "$0.058"
         },
         {
           "sym": "ANSEM",
           "name": "The Black Bull",
           "cg": "the-black-bull",
-          "held": true,
-          "comment": "Position closed Aug 1 at +7.4%."
+          "tdr_pct": 0.39,
+          "tdr_entry": "$0.185"
         }
       ]
     },
     {
       "name": "TDR Watchlist — No Buys Yet",
+      "note": "TDR price-targets list Nov 22 2026",
       "rows": [
         {
-          "sym": "2Z",
-          "name": "DoubleZero",
-          "cg": "doublezero"
+          "sym": "MORPHO",
+          "name": "Morpho",
+          "cg": "morpho",
+          "rank": 17,
+          "auto": true,
+          "comment": "Slow DeFi done right — lending fundamentals growing through the bear; you exited at a profit but the business kept executing."
+        },
+        {
+          "sym": "PENDLE",
+          "name": "Pendle",
+          "cg": "pendle",
+          "rank": 5,
+          "score": 8.4,
+          "tdr": 4,
+          "comment": "Cheap, productive, real fee base."
         },
         {
           "sym": "AAVE",
@@ -117,119 +179,43 @@
           "comment": "Automated buybacks live since Jun 27; ~$400M annualized fees vs ~$1.5B mcap. Fee softness (-25% from peak) and the $50M-to-$30M buyback cut keep the score below TDR's 9.0."
         },
         {
-          "sym": "ADA",
-          "name": "Cardano",
-          "cg": "cardano"
-        },
-        {
-          "sym": "AERO",
-          "name": "Aerodrome",
-          "cg": "aerodrome-finance",
-          "held": true,
-          "rank": 24,
-          "auto": true,
-          "comment": "Base's flagship DEX with real fee share — quality mid-cap, Coinbase-ecosystem beta."
-        },
-        {
-          "sym": "APT",
-          "name": "Aptos",
-          "cg": "aptos"
-        },
-        {
-          "sym": "ASTER",
-          "name": "Aster",
-          "cg": "aster-2"
-        },
-        {
-          "sym": "AVAX",
-          "name": "Avalanche",
-          "cg": "avalanche-2",
-          "rank": 29,
-          "auto": true
-        },
-        {
-          "sym": "AZTEC",
-          "name": "Aztec",
-          "cg": "aztec"
-        },
-        {
-          "sym": "BNB",
-          "name": "BNB",
-          "cg": "binancecoin",
-          "rank": 13,
+          "sym": "UNI",
+          "name": "Uniswap",
+          "cg": "uniswap",
+          "rank": 14,
           "score": 7.9,
-          "tdr": 14,
-          "comment": "Agree with TDR."
+          "tdr": 15,
+          "comment": "Agree; capture improving but not yet proven."
         },
         {
-          "sym": "BONK",
-          "name": "Bonk",
-          "cg": "bonk",
-          "held": true
+          "sym": "PEPE",
+          "name": "Pepe",
+          "cg": "pepe"
         },
         {
-          "sym": "CC",
-          "name": "Canton",
-          "cg": "canton-network",
-          "held": true,
-          "comment": "Institutional-chain story is real but token value capture remains opaque."
+          "sym": "VVV",
+          "name": "Venice",
+          "cg": "venice-token",
+          "rank": 15,
+          "score": 7.8,
+          "tdr": 16,
+          "comment": "Clean burn structure; small-cap risk. (Equity-raise governance wobble is the watch item.)"
         },
         {
-          "sym": "DOGE",
-          "name": "Dogecoin",
-          "cg": "dogecoin"
+          "sym": "SOL",
+          "name": "Solana",
+          "cg": "solana",
+          "rank": 7,
+          "score": 8.3,
+          "tdr": 7,
+          "comment": "Activity leader (~4x ETH's daily active addresses; #1 DEX volume). Tied with ETH within the noise band."
         },
         {
-          "sym": "FLUID",
-          "name": "Fluid",
-          "cg": "instadapp",
-          "rank": 9,
-          "score": 8.2,
-          "tdr": 8,
-          "comment": "Best small-cap fundamentals on the list."
-        },
-        {
-          "sym": "FOGO",
-          "name": "Fogo",
-          "cg": "fogo"
-        },
-        {
-          "sym": "GLXY",
-          "name": "Galaxy Digital",
-          "type": "stock"
-        },
-        {
-          "sym": "GOOGL",
-          "name": "Alphabet",
-          "type": "stock",
-          "rank": 2,
-          "score": 8.6,
-          "tdr": 2,
-          "comment": "Best quality-at-a-reasonable-price equity on the list; defensive in a fragile tape."
-        },
-        {
-          "sym": "HOOD",
-          "name": "Robinhood",
-          "type": "stock",
-          "held": true,
-          "rank": 20,
-          "auto": true,
-          "comment": "Crypto financial services + Robinhood Chain = RWA distribution winner regardless of which token captures the value."
-        },
-        {
-          "sym": "HYPE",
-          "name": "Hyperliquid",
-          "cg": "hyperliquid",
-          "held": true,
-          "rank": 3,
-          "score": 8.5,
-          "tdr": 3,
-          "comment": "$840M+ annualized fees, 97-99% recycled into buybacks, CFTC clarity. Trimmed for ~23% float and ~$62B FDV."
-        },
-        {
-          "sym": "IO",
-          "name": "io.net",
-          "cg": "io"
+          "sym": "KMNO",
+          "name": "Kamino",
+          "cg": "kamino",
+          "rank": 26,
+          "auto": true
         },
         {
           "sym": "JTO",
@@ -249,11 +235,74 @@
           "comment": "Agree, slightly trimmed for concentrated Solana beta."
         },
         {
-          "sym": "KMNO",
-          "name": "Kamino",
-          "cg": "kamino",
-          "rank": 26,
+          "sym": "RAY",
+          "name": "Raydium",
+          "cg": "raydium",
+          "rank": 12,
+          "score": 8.0,
+          "tdr": 6,
+          "comment": "Demoted from TDR's #6: an acknowledged security risk is inconsistent with a top-6 slot."
+        },
+        {
+          "sym": "2Z",
+          "name": "DoubleZero",
+          "cg": "doublezero"
+        },
+        {
+          "sym": "BONK",
+          "name": "Bonk",
+          "cg": "bonk"
+        },
+        {
+          "sym": "HYPE",
+          "name": "Hyperliquid",
+          "cg": "hyperliquid",
+          "rank": 3,
+          "score": 8.5,
+          "tdr": 3,
+          "comment": "$840M+ annualized fees, 97-99% recycled into buybacks, CFTC clarity. Trimmed for ~23% float and ~$62B FDV."
+        },
+        {
+          "sym": "HOOD",
+          "name": "Robinhood",
+          "type": "stock",
+          "rank": 20,
+          "auto": true,
+          "comment": "Crypto financial services + Robinhood Chain = RWA distribution winner regardless of which token captures the value."
+        },
+        {
+          "sym": "GLXY",
+          "name": "Galaxy Digital",
+          "type": "stock"
+        },
+        {
+          "sym": "BNB",
+          "name": "BNB",
+          "cg": "binancecoin",
+          "rank": 13,
+          "score": 7.9,
+          "tdr": 14,
+          "comment": "Agree with TDR."
+        },
+        {
+          "sym": "AVAX",
+          "name": "Avalanche",
+          "cg": "avalanche-2",
+          "rank": 29,
           "auto": true
+        },
+        {
+          "sym": "SUI",
+          "name": "Sui",
+          "cg": "sui",
+          "rank": 23,
+          "auto": true,
+          "comment": "Quality L1 at a deep discount; strong tech, weak token-capture story."
+        },
+        {
+          "sym": "TIA",
+          "name": "Celestia",
+          "cg": "celestia"
         },
         {
           "sym": "MON",
@@ -261,19 +310,59 @@
           "cg": "monad"
         },
         {
-          "sym": "MORPHO",
-          "name": "Morpho",
-          "cg": "morpho",
-          "held": true,
-          "rank": 17,
+          "sym": "TAO",
+          "name": "Bittensor",
+          "cg": "bittensor",
+          "rank": 28,
           "auto": true,
-          "comment": "Slow DeFi done right — lending fundamentals growing through the bear; you exited at a profit but the business kept executing."
+          "comment": "The decentralized-compute leader — the sector Nadeau says he's researching next; inference bottleneck is the thesis."
+        },
+        {
+          "sym": "AERO",
+          "name": "Aerodrome",
+          "cg": "aerodrome-finance",
+          "rank": 24,
+          "auto": true,
+          "comment": "Base's flagship DEX with real fee share — quality mid-cap, Coinbase-ecosystem beta."
+        },
+        {
+          "sym": "NEAR",
+          "name": "NEAR",
+          "cg": "near"
+        }
+      ]
+    },
+    {
+      "name": "Off the TDR list — Damian's ranked extras",
+      "rows": [
+        {
+          "sym": "CC",
+          "name": "Canton",
+          "cg": "canton-network",
+          "comment": "Institutional-chain story is real but token value capture remains opaque."
+        },
+        {
+          "sym": "FLUID",
+          "name": "Fluid",
+          "cg": "instadapp",
+          "rank": 9,
+          "score": 8.2,
+          "tdr": 8,
+          "comment": "Best small-cap fundamentals on the list."
+        },
+        {
+          "sym": "GOOGL",
+          "name": "Alphabet",
+          "type": "stock",
+          "rank": 2,
+          "score": 8.6,
+          "tdr": 2,
+          "comment": "Best quality-at-a-reasonable-price equity on the list; defensive in a fragile tape."
         },
         {
           "sym": "MSFT",
           "name": "Microsoft",
           "type": "stock",
-          "held": true,
           "rank": 19,
           "auto": true
         },
@@ -293,58 +382,6 @@
           "comment": "Leveraged WLD treasury vehicle — an option on Worldcoin, not a business."
         },
         {
-          "sym": "PENDLE",
-          "name": "Pendle",
-          "cg": "pendle",
-          "rank": 5,
-          "score": 8.4,
-          "tdr": 4,
-          "comment": "Cheap, productive, real fee base."
-        },
-        {
-          "sym": "PEPE",
-          "name": "Pepe",
-          "cg": "pepe"
-        },
-        {
-          "sym": "PHA",
-          "name": "Phala",
-          "cg": "pha"
-        },
-        {
-          "sym": "RAY",
-          "name": "Raydium",
-          "cg": "raydium",
-          "rank": 12,
-          "score": 8.0,
-          "tdr": 6,
-          "comment": "Demoted from TDR's #6: an acknowledged security risk is inconsistent with a top-6 slot."
-        },
-        {
-          "sym": "SOL",
-          "name": "Solana",
-          "cg": "solana",
-          "held": true,
-          "rank": 7,
-          "score": 8.3,
-          "tdr": 7,
-          "comment": "Activity leader (~4x ETH's daily active addresses; #1 DEX volume). Tied with ETH within the noise band."
-        },
-        {
-          "sym": "SPCX",
-          "name": "SPCX",
-          "type": "stock"
-        },
-        {
-          "sym": "SUI",
-          "name": "Sui",
-          "cg": "sui",
-          "held": true,
-          "rank": 23,
-          "auto": true,
-          "comment": "Quality L1 at a deep discount; strong tech, weak token-capture story."
-        },
-        {
           "sym": "SYRUP",
           "name": "Maple/Syrup",
           "cg": "syrup",
@@ -353,66 +390,16 @@
           "comment": "On-chain credit with real revenue — the RWA theme expressed through an actual lending book."
         },
         {
-          "sym": "TIA",
-          "name": "Celestia",
-          "cg": "celestia"
-        },
-        {
-          "sym": "TURBO",
-          "name": "Turbo",
-          "cg": "turbo"
-        },
-        {
-          "sym": "UNI",
-          "name": "Uniswap",
-          "cg": "uniswap",
-          "rank": 14,
-          "score": 7.9,
-          "tdr": 15,
-          "comment": "Agree; capture improving but not yet proven."
-        },
-        {
-          "sym": "WAL",
-          "name": "Walrus",
-          "cg": "walrus-2"
-        },
-        {
-          "sym": "XPL",
-          "name": "Plasma",
-          "cg": "plasma"
-        },
-        {
           "sym": "XRP",
           "name": "XRP",
           "cg": "ripple",
           "comment": "Deep liquidity and institutional rails, thin fee capture relative to cap."
-        },
-        {
-          "sym": "ZEC",
-          "name": "Zcash",
-          "cg": "zcash",
-          "rank": 30,
-          "auto": true,
-          "comment": "Privacy narrative held up unusually well through this bear (Nadeau likes it, doesn't hold it)."
         }
       ]
     },
     {
       "name": "AI",
       "rows": [
-        {
-          "sym": "TAO",
-          "name": "Bittensor",
-          "cg": "bittensor",
-          "rank": 28,
-          "auto": true,
-          "comment": "The decentralized-compute leader — the sector Nadeau says he's researching next; inference bottleneck is the thesis."
-        },
-        {
-          "sym": "GRASS",
-          "name": "Grass",
-          "cg": "grass"
-        },
         {
           "sym": "RENDER",
           "name": "Render",
@@ -422,11 +409,6 @@
           "sym": "AKT",
           "name": "Akash",
           "cg": "akash-network"
-        },
-        {
-          "sym": "NEAR",
-          "name": "NEAR",
-          "cg": "near"
         },
         {
           "sym": "ATH",
@@ -440,27 +422,13 @@
           "cg": "dexe"
         },
         {
-          "sym": "VVV",
-          "name": "Venice",
-          "cg": "venice-token",
-          "rank": 15,
-          "score": 7.8,
-          "tdr": 16,
-          "comment": "Clean burn structure; small-cap risk. (Equity-raise governance wobble is the watch item.)"
-        },
-        {
-          "sym": "WLD",
-          "name": "Worldcoin",
-          "cg": "worldcoin-wld",
-          "held": true,
-          "comment": "Identity moonshot with Eightco DAT bid behind it; unlock overhang is the drag."
-        },
-        {
           "sym": "IP",
           "name": "Story (DATA)",
           "cg": "story-2"
         }
       ]
     }
-  ]
+  ],
+  "_tdr_asof": "2026-11-18",
+  "_tdr_cash_pct": 6.23
 }

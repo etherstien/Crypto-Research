@@ -134,7 +134,7 @@
         <th class="r" data-key="chg30" data-label="30d">30d</th>
         <th class="r" data-key="dd" data-label="ATH DD">ATH DD</th>
         <th data-key="deploy" data-label="Deploy">Deploy</th>
-        <th data-key="held" data-label="Held">Held</th>
+        <th class="r" data-key="tdr" data-label="TDR %">TDR %</th>
       </tr></thead>
       <tbody id="wl-rows"></tbody>
     </table></div>
@@ -143,7 +143,7 @@
       Stocks show only price + 24h here (no 30d/DD/Deploy — they're ranked on the BlueChip page).
       An amber <span style="color:var(--amber)">&#9888; fix id</span> means the row's CoinGecko slug in watchlist.json
       is wrong — hover it for the bad slug.
-      &#9679; HELD = position you hold. Click any column header to sort (click again to flip);
+      <strong>TDR %</strong> = that name's share of the TDR Pro portfolio on the Nov 18 2026 holdings sheet (hover for TDR's average entry); blank = TDR doesn't own it. Click any column header to sort (click again to flip);
       sorting applies within each group, groups stay in place. Default sort: most-deployable first.
       <br><strong>Rank</strong> = conviction (what to own): gold #1-15 with scores = Damian's re-ranking of the TDR sheet
       (hover a rank for the reasoning + TDR's own rank); grey #16-30* = Claude's fill-in top 15 for names off the sheet.
@@ -363,6 +363,7 @@ async function renderWatchlist() {
   // build once; draw() re-sorts on header clicks
   const groups = cfg.groups.map(g => ({
     name: g.name,
+    note: g.note,
     entries: g.rows.map(r => {
       const c = r.cg ? cgData[r.cg] : null;
       const d = c ? deployScore(c) : null;
@@ -387,9 +388,9 @@ async function renderWatchlist() {
     : k === "chg30" ? (e.d ? e.d.c30 : null)
     : k === "dd" ? (e.d ? e.d.dd : null)
     : k === "deploy" ? (e.d ? e.d.score : null)
-    : k === "held" ? (e.r.held ? 1 : 0) : null;
+    : k === "tdr" ? (e.r.tdr_pct ?? null) : null;
   // sensible first-click direction per column (second click flips)
-  const defaultDir = {sym: 1, rank: 1, px: -1, chg24: -1, chg30: -1, dd: 1, deploy: -1, held: -1};
+  const defaultDir = {sym: 1, rank: 1, px: -1, chg24: -1, chg30: -1, dd: 1, deploy: -1, tdr: -1};
   let sortKey = "deploy", sortDir = -1;
 
   function draw() {
@@ -398,7 +399,7 @@ async function renderWatchlist() {
     const pct = (v, dec) => v == null ? '<span class="mut">—</span>'
       : `<span class="${v >= 0 ? "pos" : "neg"}">${v >= 0 ? "+" : ""}${v.toFixed(dec)}%</span>`;
     groups.forEach(g => {
-      rows.push(`<tr><td colspan="8" style="background:#1c2230; color:var(--accent); font-size:.78rem; letter-spacing:.05em; text-transform:uppercase">${g.name}</td></tr>`);
+      rows.push(`<tr><td colspan="8" style="background:#1c2230; color:var(--accent); font-size:.78rem; letter-spacing:.05em; text-transform:uppercase">${g.name}${g.note ? ` <span class="mut" style="text-transform:none; letter-spacing:0">· ${esc(g.note)}</span>` : ""}</td></tr>`);
       [...g.entries].sort((a, b) => {
         const va = sortVal(a, sortKey), vb = sortVal(b, sortKey);
         if (va == null && vb == null) return 0;
@@ -420,7 +421,7 @@ async function renderWatchlist() {
           <td class="r">${pct(d?.c30, 1)}</td>
           <td class="r">${d ? `<span class="mut">${d.dd.toFixed(0)}%</span>` : '<span class="mut">—</span>'}</td>
           <td>${d ? tierChip(d.tier) : '<span class="mut">—</span>'}</td>
-          <td>${r.held ? '<span class="pos" style="font-size:.72em">&#9679; HELD</span>' : ""}</td>
+          <td class="r">${r.tdr_pct != null ? `<span class="pos" title="TDR Pro average entry ${esc(r.tdr_entry)}">${r.tdr_pct.toFixed(2)}%</span>` : '<span class="mut">—</span>'}</td>
         </tr>`);
       });
     });

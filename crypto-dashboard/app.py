@@ -32,14 +32,15 @@ STABLECOINS = {"USD", "USDT", "USDC", "BUSD", "DAI", "TUSD", "USDP", "GUSD", "EU
 # TDR Pro Radar — positions, watchlist, Pine Script tiers
 # ---------------------------------------------------------------------------
 _TDR_POSITIONS = frozenset([
-    "BTC", "ETH", "LIT", "PUMP", "ENA", "WLD", "COIN", "CRCL",
-    "PENGU", "SPX6900", "USELESS", "DRV",
+    "BTC", "ZEC", "ETH", "LIT", "DRV", "PUMP", "PONS", "ENA", "WLD", "GRASS",
+    "COIN", "CRCL", "PENGU", "SPX6900", "USELESS", "ANSEM",
 ])
 _TDR_WATCHLIST = frozenset([
-    "BTC", "PUMP", "LIT", "WLD", "ENA", "DRV", "USELESS", "ETH", "CRCL",
-    "PENGU", "COIN", "AERO", "TAO", "MON", "TIA", "SUI", "AVAX", "BNB",
-    "GLXY", "HOOD", "ZCASH", "HYPE", "BONK", "DOUBLEZERO", "RAY", "JUP",
-    "JTO", "KAMINO", "SOL", "VVV", "PEPE", "UNI", "AAVE", "PENDLE", "MORPHO",
+    "BTC", "ZEC", "ETH", "LIT", "DRV", "PUMP", "PONS", "ENA", "WLD", "GRASS",
+    "COIN", "CRCL", "PENGU", "SPX6900", "USELESS", "ANSEM", "MORPHO",
+    "PENDLE", "AAVE", "UNI", "PEPE", "VVV", "SOL", "KAMINO", "JTO", "JUP",
+    "RAY", "DOUBLEZERO", "BONK", "HYPE", "HOOD", "GLXY", "BNB", "AVAX",
+    "SUI", "TIA", "MON", "TAO", "AERO", "NEAR",
 ])
 _PINE_TIERS = {
     "S": ["BTC", "ETH", "SOL", "LINK"],
