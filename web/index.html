@@ -219,7 +219,8 @@ async function renderCycle() {
     `<span class="mut">(-${ref.capitulation_distance_pct}% away — close below = Q4 path, $45-55k zone live; LTH floor $${Number(ref.lth_floor).toLocaleString()})</span><br>` +
     `Template window <strong>${w.start} → ${w.end}</strong> ` +
     (w.in_window ? '<span class="neg">[IN WINDOW NOW]</span>'
-                 : `<span class="mut">(opens in ${w.days_to_start} days)</span>`);
+     : w.days_to_end < 0 ? `<span style="color:var(--amber)">[CLOSED ${-w.days_to_end} day${w.days_to_end === -1 ? "" : "s"} ago — no valuation signal fired inside it]</span>`
+     : `<span class="mut">(opens in ${w.days_to_start} days)</span>`);
   document.getElementById("cycle-verdict").textContent = c.verdict || "";
   const chip = s => s === "FIRED" ? '<span class="pos">&#9679; FIRED</span>'
     : s === "CLOSE" ? '<span style="color:var(--amber)">&#9679; CLOSE</span>'

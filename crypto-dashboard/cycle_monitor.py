@@ -714,6 +714,12 @@ def run_monitor():
                f"behavioral {beh_fired} fired, valuation {val_fired} fired. "
                + ("INSIDE the Oct 4 - Nov 20 template window: valuation signals firing now = maximum-deployment zone."
                   if in_window else
+                  f"Template window closed {WINDOW_END} ({(today - we).days} days ago) with "
+                  f"{val_fired} valuation signal{'' if val_fired == 1 else 's'} fired — the timing template "
+                  "missed; price is the referee now. Reclaim of the "
+                  f"${sth / 1000:.0f}k STH cost-basis line favors 'bottom already in'; a close below realized "
+                  "price keeps the capitulation path live."
+                  if today > we else
                   f"Template window opens {WINDOW_START} ({(ws - today).days} days). "
                   f"Reclaim of the ${sth / 1000:.0f}k STH cost-basis line before then favors "
                   "'bottom already in'; a close below realized price favors the Q4 capitulation path."))
@@ -790,7 +796,9 @@ if __name__ == "__main__":
           f"LTH floor ${ref['lth_floor']:,.0f}")
     w = res["window"]
     print(f"Template window: {w['start']} → {w['end']}"
-          + (" [IN WINDOW]" if w["in_window"] else f" (opens in {w['days_to_start']}d)"))
+          + (" [IN WINDOW]" if w["in_window"]
+             else f" (closed {-w['days_to_end']}d ago)" if w["days_to_end"] < 0
+             else f" (opens in {w['days_to_start']}d)"))
     print(f"\n{'SIGNAL':<44} {'VALUE':>16}  STATUS")
     print("-" * 76)
     for s in res["signals"]:
